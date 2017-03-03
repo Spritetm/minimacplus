@@ -12,25 +12,42 @@
 unsigned char *macRom;
 unsigned char *macRam;
 
+void viaWrite(unsigned int addr, unsigned int val) {
+	printf("VIA write %x val %x\n", addr, val);
+}
+
+
+unsigned int viaRead(unsigned int addr) {
+	unsigned int val=0;
+	printf("VIA read %x val %x\n", addr, val);
+	return val;
+}
+
 int rom_remap;
 
 unsigned int  m68k_read_memory_8(unsigned int address) {
 	unsigned int ret;
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
-	if (rom_remap && address < 0x400000) {
-		ret=macRom[address & (TME_ROMSIZE-1)];
-	} else if (rom_remap && address > 0x600000 && address <= 0xA00000) {
+	if (address < 0x400000) {
+		if (rom_remap) {
+			ret=macRom[address & (TME_ROMSIZE-1)];
+		} else {
+			ret=macRam[address & (TME_RAMSIZE-1)];
+		}
+	} else if (address >= 0x600000 && address < 0xA00000) {
 		ret=macRam[address & (TME_RAMSIZE-1)];
-	} else if (address < 0x400000) {
-		ret=macRam[address & (TME_RAMSIZE-1)];
-	} else if (address>0x400000 && address<0x41FFFF) {
+	} else if (address >= 0x400000 && address<0x41FFFF) {
 		int romAdr=address-0x400000;
 		if (romAdr>TME_ROMSIZE) printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
 		ret=macRom[romAdr&(TME_ROMSIZE-1)];
 //		rom_remap=0; //HACK
+	} else if (address >= 0xE80000 && address < 0xf00000) {
+		ret=viaRead((address>>8)&0xf);
+	} else if (address >= 0xc00000 && address < 0xe00000) {
+		ret=iwmRead((address>>8)&0xf);
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
-		ret=rand();
+		ret=0xaa;
 	}
 //	printf("Rd %x = %x\n", address, ret);
 	return ret;
@@ -40,8 +57,12 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
 	if (address < 0x400000) {
 		macRam[address & (TME_RAMSIZE-1)]=value;
-	} else if (rom_remap && address > 0x600000 && address <= 0xA00000) {
+	} else if (address >= 0x600000 && address < 0xA00000) {
 		macRam[address & (TME_RAMSIZE-1)]=value;
+	} else if (address >= 0xE80000 && address < 0xf00000) {
+		viaWrite((address>>8)&0xf, value);
+	} else if (address >= 0xc00000 && address < 0xe00000) {
+		iwmWrite((address>>8)&0xf, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -60,13 +81,13 @@ void tmeStartEmu(void *rom) {
 	while(1) {
 		m68k_execute(8000000/60);
 		dispDraw(&macRam[0x1A700]);
-		printf("Int!\n");
+//		printf("Int!\n");
 //		m68k_set_irq(2);
 	}
 }
 
 
-//Mac uses an 68008, which has an external 8-bit bus. Hence, it should be okay to do everything using 8-bit
+//Mac uses an 68008, which has an external 16-bit bus. Hence, it should be okay to do everything using 16-bit
 //reads/writes.
 unsigned int  m68k_read_memory_32(unsigned int address) {
 	unsigned int ret;
