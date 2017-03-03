@@ -1,0 +1,5 @@
+
+
+#define TME_ROMSIZE (64*1024)
+
+#define TME_RAMSIZE (128*1024)

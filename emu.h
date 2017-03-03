@@ -1,0 +1,3 @@
+
+
+void tmeStartEmu(void *rom);
