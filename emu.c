@@ -8,22 +8,13 @@
 #include "config.h"
 #include "m68k.h"
 #include "disp.h"
+#include "iwm.h"
+#include "via.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
 
-void viaWrite(unsigned int addr, unsigned int val) {
-	printf("VIA write %x val %x\n", addr, val);
-}
-
-
-unsigned int viaRead(unsigned int addr) {
-	unsigned int val=0;
-	printf("VIA read %x val %x\n", addr, val);
-	return val;
-}
-
-int rom_remap;
+int rom_remap, video_remap=0, audio_remap=0;
 
 unsigned int  m68k_read_memory_8(unsigned int address) {
 	unsigned int ret;
@@ -44,7 +35,7 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 	} else if (address >= 0xE80000 && address < 0xf00000) {
 		ret=viaRead((address>>8)&0xf);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
-		ret=iwmRead((address>>8)&0xf);
+		ret=iwmRead((address>>9)&0xf);
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
 		ret=0xaa;
@@ -62,7 +53,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	} else if (address >= 0xE80000 && address < 0xf00000) {
 		viaWrite((address>>8)&0xf, value);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
-		iwmWrite((address>>8)&0xf, value);
+		iwmWrite((address>>9)&0xf, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -80,7 +71,7 @@ void tmeStartEmu(void *rom) {
 	dispInit();
 	while(1) {
 		m68k_execute(8000000/60);
-		dispDraw(&macRam[0x1A700]);
+		dispDraw(&macRam[video_remap?0x12700:0x1A700]);
 //		printf("Int!\n");
 //		m68k_set_irq(2);
 	}
@@ -112,3 +103,13 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	m68k_write_memory_8(address, (value>>8)&0xff);
 	m68k_write_memory_8(address+1, value&0xff);
 }
+
+void viaCbPortAWrite(unsigned int val) {
+	video_remap=(val&(1<<6))?1:0;
+	rom_remap=(val&(1<<4))?1:0;
+	audio_remap=(val&(1<<3))?1:0;
+}
+
+void viaCbPortBWrite(unsigned int val) {
+}
+
