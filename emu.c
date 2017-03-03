@@ -17,17 +17,20 @@ int rom_remap;
 unsigned int  m68k_read_memory_8(unsigned int address) {
 	unsigned int ret;
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
-	if (rom_remap && address < TME_ROMSIZE) {
-		ret=macRom[address];
-	} else if (address < TME_RAMSIZE) {
-		ret=macRam[address];
+	if (rom_remap && address < 0x400000) {
+		ret=macRom[address & (TME_ROMSIZE-1)];
+	} else if (rom_remap && address > 0x600000 && address <= 0xA00000) {
+		ret=macRam[address & (TME_RAMSIZE-1)];
+	} else if (address < 0x400000) {
+		ret=macRam[address & (TME_RAMSIZE-1)];
 	} else if (address>0x400000 && address<0x41FFFF) {
 		int romAdr=address-0x400000;
 		if (romAdr>TME_ROMSIZE) printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
 		ret=macRom[romAdr&(TME_ROMSIZE-1)];
+//		rom_remap=0; //HACK
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
-		ret=0xff;
+		ret=rand();
 	}
 //	printf("Rd %x = %x\n", address, ret);
 	return ret;
@@ -35,8 +38,10 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 
 void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
-	if (address < TME_RAMSIZE) {
-		macRam[address]=value;
+	if (address < 0x400000) {
+		macRam[address & (TME_RAMSIZE-1)]=value;
+	} else if (rom_remap && address > 0x600000 && address <= 0xA00000) {
+		macRam[address & (TME_RAMSIZE-1)]=value;
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -46,6 +51,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 void tmeStartEmu(void *rom) {
 	macRom=rom;
 	macRam=malloc(TME_RAMSIZE);
+	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=x;
 	rom_remap=1;
 	m68k_init();
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
@@ -54,6 +60,8 @@ void tmeStartEmu(void *rom) {
 	while(1) {
 		m68k_execute(8000000/60);
 		dispDraw(&macRam[0x1A700]);
+		printf("Int!\n");
+//		m68k_set_irq(2);
 	}
 }
 

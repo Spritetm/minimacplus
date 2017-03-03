@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 
 const int SCREEN_WIDTH = 512; 
 const int SCREEN_HEIGHT = 342;
@@ -25,12 +25,12 @@ void dispInit() {
 
 void dispDraw(char *mem) {
 	int x, y, z;
-	uint32_t pixels=drwsurf->pixels;
 	SDL_LockSurface(drwsurf);
+	uint32_t *pixels=(uint32_t*)drwsurf->pixels;
 	for (y=0; y<SCREEN_HEIGHT; y++) {
 		for (x=0; x<SCREEN_WIDTH; x+=8) {
-			for (z=1; z!=0x100; z++) {
-				if (*mem&z) *pixels=0xFFFFFF; else *pixels=0;
+			for (z=0x80; z!=0; z>>=1) {
+				if (*mem&z) *pixels=0xFF000000; else *pixels=0xFFFFFFFF;
 				pixels++;
 			}
 			mem++;

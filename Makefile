@@ -2,8 +2,8 @@ TARGET:=tme
 MUSASHI_GEN_SRC:=musashi/m68kops.c musashi/m68kopac.c musashi/m68kopdm.c musashi/m68kopnz.c
 OBJ:=$(MUSASHI_GEN_SRC:%.x=%.o) musashi/m68kcpu.o  main.o emu.o disp.o
 #musashi/m68kdasm.o
-CFLAGS=-Wall -I. -I./musashi -ggdb
-LDFLAGS=
+CFLAGS=-Wall -I. -I./musashi -ggdb `sdl2-config --cflags`
+LDFLAGS=`sdl2-config --libs`
 
 $(TARGET): $(OBJ)
 	$(CC) -o $(@) $(CFLAGS) $(LDFLAGS) $^
