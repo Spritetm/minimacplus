@@ -5,11 +5,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include "config.h"
 #include "m68k.h"
 #include "disp.h"
 #include "iwm.h"
 #include "via.h"
+#include "rtc.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -33,7 +35,7 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 		ret=macRom[romAdr&(TME_ROMSIZE-1)];
 //		rom_remap=0; //HACK
 	} else if (address >= 0xE80000 && address < 0xf00000) {
-		ret=viaRead((address>>8)&0xf);
+		ret=viaRead((address>>9)&0xf);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		ret=iwmRead((address>>9)&0xf);
 	} else {
@@ -51,7 +53,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	} else if (address >= 0x600000 && address < 0xA00000) {
 		macRam[address & (TME_RAMSIZE-1)]=value;
 	} else if (address >= 0xE80000 && address < 0xf00000) {
-		viaWrite((address>>8)&0xf, value);
+		viaWrite((address>>9)&0xf, value);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		iwmWrite((address>>9)&0xf, value);
 	} else {
@@ -59,24 +61,58 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	}
 }
 
+//Should be called every second. 
+void printFps() {
+	struct timeval tv;
+	static struct timeval oldtv;
+	gettimeofday(&tv, NULL);
+	if (oldtv.tv_sec!=0) {
+		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
+		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
+		printf("Speed: %d%%\n", 100000/msec);
+	}
+	oldtv.tv_sec=tv.tv_sec;
+	oldtv.tv_usec=tv.tv_usec;
+}
+
+#define GRAN 100
 
 void tmeStartEmu(void *rom) {
+	int ca1=0, ca2=0;
+	int x, frame=0;
 	macRom=rom;
 	macRam=malloc(TME_RAMSIZE);
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=x;
 	rom_remap=1;
+	viaClear(VIA_PORTA, 0x7F);
+	viaSet(VIA_PORTA, 0x80);
 	m68k_init();
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
 	m68k_pulse_reset();
 	dispInit();
 	while(1) {
-		m68k_execute(8000000/60);
+		for (x=0; x<8000000/60; x+=GRAN) {
+			m68k_execute(GRAN);
+			viaStep(GRAN);
+		}
 		dispDraw(&macRam[video_remap?0x12700:0x1A700]);
-//		printf("Int!\n");
-//		m68k_set_irq(2);
+		frame++;
+		ca1^=1;
+		viaControlWrite(VIA_CA1, ca1);
+		if (frame>=60) {
+			ca2^=1;
+			viaControlWrite(VIA_CA2, ca2);
+			rtcTick();
+			frame=0;
+			printFps();
+		}
 	}
 }
 
+void viaIrq(int req) {
+//	printf("IRQ %d\n", req);
+	m68k_set_irq(req?1:0);
+}
 
 //Mac uses an 68008, which has an external 16-bit bus. Hence, it should be okay to do everything using 16-bit
 //reads/writes.
@@ -104,6 +140,12 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	m68k_write_memory_8(address+1, value&0xff);
 }
 
+void m68k_int_ack(int irq) {
+	//Mac has level interrupts; no ack. Fake by raising the irq as soon as
+	//it's serviced.
+	m68k_set_irq(irq);
+}
+
 void viaCbPortAWrite(unsigned int val) {
 	video_remap=(val&(1<<6))?1:0;
 	rom_remap=(val&(1<<4))?1:0;
@@ -111,5 +153,8 @@ void viaCbPortAWrite(unsigned int val) {
 }
 
 void viaCbPortBWrite(unsigned int val) {
+	int b;
+	b=rtcCom(val&4, val&1, val&2);
+	if (b) viaSet(VIA_PORTB, 1); else viaClear(VIA_PORTB, 1);
 }
 
