@@ -27,7 +27,7 @@ void iwmWrite(unsigned int addr, unsigned int val) {
 	iwmAccess(addr);
 	int reg=iwmLines&(IWM_Q7|IWM_Q6);
 	if (reg==0xC0) iwmModeReg=val;
-	printf("IWM write %x (iwm reg %x) val %x\n", addr, reg, val);
+//	printf("IWM write %x (iwm reg %x) val %x\n", addr, reg, val);
 }
 
 unsigned int iwmRead(unsigned int addr) {
@@ -49,6 +49,6 @@ unsigned int iwmRead(unsigned int addr) {
 		if (iwmLines&IWM_ENABLE) val|=0x20; //enable
 		val|=iwmModeReg&0x1F;
 	}
-	printf("IWM read %x (iwm reg %x) val %x\n", addr, reg, val);
+//	printf("IWM read %x (iwm reg %x) val %x\n", addr, reg, val);
 	return val;
 }

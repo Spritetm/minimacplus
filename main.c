@@ -10,9 +10,14 @@
 
 
 static void *loadRom(char *file) {
+	int i;
 	char *ret=malloc(TME_ROMSIZE);
 	int f=open(file, O_RDONLY);
-	read(f, ret, TME_ROMSIZE);
+	i=read(f, ret, TME_ROMSIZE);
+	if (i!=TME_ROMSIZE) {
+		perror("reading rom");
+		exit(1);
+	}
 	return ret;
 }
 

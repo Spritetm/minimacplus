@@ -156,7 +156,7 @@ void viaWrite(unsigned int addr, unsigned int val) {
 		viaCheckIrq();
 	} else if (addr==0xa) {
 		//SR
-		printf("6522: Unimplemented: Write %x to SR?\n", val);
+//		printf("6522: Unimplemented: Write %x to SR?\n", val);
 	} else if (addr==0xb) {
 		//ACR
 		via.acr=val;
@@ -225,7 +225,7 @@ unsigned int viaRead(unsigned int addr) {
 		val=via.timer2>>8;
 	} else if (addr==0xa) {
 		//SR
-		printf("6522: Unimplemented: Read from SR?\n");
+//		printf("6522: Unimplemented: Read from SR?\n");
 	} else if (addr==0xb) {
 		//ACR
 		val=via.acr;

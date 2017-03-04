@@ -12,6 +12,7 @@
 #include "iwm.h"
 #include "via.h"
 #include "rtc.h"
+#include "ncr.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -28,19 +29,20 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 			ret=macRam[address & (TME_RAMSIZE-1)];
 		}
 	} else if (address >= 0x600000 && address < 0xA00000) {
-		ret=macRam[address & (TME_RAMSIZE-1)];
+		ret=macRam[(address-0x600000) & (TME_RAMSIZE-1)];
 	} else if (address >= 0x400000 && address<0x41FFFF) {
 		int romAdr=address-0x400000;
-		if (romAdr>TME_ROMSIZE) printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
+		if (romAdr>=TME_ROMSIZE) printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
 		ret=macRom[romAdr&(TME_ROMSIZE-1)];
-//		rom_remap=0; //HACK
 	} else if (address >= 0xE80000 && address < 0xf00000) {
 		ret=viaRead((address>>9)&0xf);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		ret=iwmRead((address>>9)&0xf);
+	} else if (address >= 0x580000 && address < 0x600000) {
+		ret=ncrRead((address>>4)&0x7, (address>>7)&1);
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
-		ret=0xaa;
+		ret=0xff;
 	}
 //	printf("Rd %x = %x\n", address, ret);
 	return ret;
@@ -48,14 +50,16 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 
 void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
-	if (address < 0x400000) {
+	if (address < 0x400000 && !rom_remap) {
 		macRam[address & (TME_RAMSIZE-1)]=value;
 	} else if (address >= 0x600000 && address < 0xA00000) {
-		macRam[address & (TME_RAMSIZE-1)]=value;
+		macRam[(address-0x600000) & (TME_RAMSIZE-1)]=value;
 	} else if (address >= 0xE80000 && address < 0xf00000) {
 		viaWrite((address>>9)&0xf, value);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		iwmWrite((address>>9)&0xf, value);
+	} else if (address >= 0x580000 && address < 0x600000) {
+		ncrWrite((address>>4)&0x7, (address>>7)&1, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -82,7 +86,7 @@ void tmeStartEmu(void *rom) {
 	int x, frame=0;
 	macRom=rom;
 	macRam=malloc(TME_RAMSIZE);
-	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=x;
+	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0xaa;
 	rom_remap=1;
 	viaClear(VIA_PORTA, 0x7F);
 	viaSet(VIA_PORTA, 0x80);
@@ -95,7 +99,7 @@ void tmeStartEmu(void *rom) {
 			m68k_execute(GRAN);
 			viaStep(GRAN);
 		}
-		dispDraw(&macRam[video_remap?0x12700:0x1A700]);
+		dispDraw(&macRam[video_remap?TME_SCREENBUF_ALT:TME_SCREENBUF]);
 		frame++;
 		ca1^=1;
 		viaControlWrite(VIA_CA1, ca1);
