@@ -13,6 +13,7 @@
 #include "via.h"
 #include "rtc.h"
 #include "ncr.h"
+#include "hd.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -30,10 +31,13 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 		}
 	} else if (address >= 0x600000 && address < 0xA00000) {
 		ret=macRam[(address-0x600000) & (TME_RAMSIZE-1)];
-	} else if (address >= 0x400000 && address<0x41FFFF) {
+	} else if (address >= 0x400000 && address<0x500000) {
 		int romAdr=address-0x400000;
-		if (romAdr>=TME_ROMSIZE) printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
-		ret=macRom[romAdr&(TME_ROMSIZE-1)];
+		if (romAdr>=TME_ROMSIZE) {
+			printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
+		} else {
+			ret=macRom[romAdr&(TME_ROMSIZE-1)];
+		}
 	} else if (address >= 0xE80000 && address < 0xf00000) {
 		ret=viaRead((address>>9)&0xf);
 	} else if (address >= 0xc00000 && address < 0xe00000) {
@@ -88,6 +92,8 @@ void tmeStartEmu(void *rom) {
 	macRam=malloc(TME_RAMSIZE);
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0xaa;
 	rom_remap=1;
+	SCSIDevice *hd=hdCreate("hd.img");
+	ncrRegisterDevice(6, hd);
 	viaClear(VIA_PORTA, 0x7F);
 	viaSet(VIA_PORTA, 0x80);
 	m68k_init();

@@ -39,7 +39,6 @@ int rtcCom(int en, int dat, int clk) {
 				printf("RTC/PRAM CMD %x\n", rtc.cmd);
 			}
 			rtc.pos++;
-			printf("RTC/PRAM pos %d CMD %x\n", rtc.pos, rtc.cmd);
 		}
 	}
 	rtc.lastClkVal=clk;
