@@ -26,14 +26,15 @@ const uint8_t inq_resp[95]={
 static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len, unsigned int lba, void *arg) {
 	int ret=0;
 	HdPriv *hd=(HdPriv*)arg;
-	for (int x=0; x<32; x++) printf("%02X ", data->cmd[x]);
-	printf("\n");
+//	for (int x=0; x<32; x++) printf("%02X ", data->cmd[x]);
+//	printf("\n");
 	if (cmd==0x8 || cmd==0x28) { //read
 		fseek(hd->f, lba*512, SEEK_SET);
 		fread(data->data, 512, len, hd->f);
 		printf("HD: Read %d bytes.\n", len*512);
 		ret=len*512;
 	} else if (cmd==0x12) { //inquiry
+		printf("HD: Inquery\n");
 		memcpy(data->data, inq_resp, sizeof(inq_resp));
 		return 95;
 	} else if (cmd==0x25) { //read capacity
@@ -47,6 +48,7 @@ static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len,
 		data->data[6]=2; //512
 		data->data[7]=0;
 		ret=8;
+		printf("HD: Read capacity (%d)\n", lbacnt);
 	} else {
 		printf("********** hdScsiCmd: unrecognized command %x\n", cmd);
 	}

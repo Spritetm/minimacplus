@@ -87,7 +87,7 @@
  * If off, all interrupts will be autovectored and all interrupt requests will
  * auto-clear when the interrupt is serviced.
  */
-#define M68K_EMULATE_INT_ACK        OPT_ON
+#define M68K_EMULATE_INT_ACK        OPT_OFF
 #define M68K_INT_ACK_CALLBACK(A)    m68k_int_ack(A)
 
 
@@ -131,8 +131,8 @@
 /* If ON, CPU will call the instruction hook callback before every
  * instruction.
  */
-#define M68K_INSTRUCTION_HOOK       OPT_OFF
-#define M68K_INSTRUCTION_CALLBACK() your_instruction_hook_function()
+#define M68K_INSTRUCTION_HOOK       OPT_SPECIFY_HANDLER
+#define M68K_INSTRUCTION_CALLBACK() m68k_instruction()
 
 
 /* If ON, the CPU will emulate the 4-byte prefetch queue of a real 68000 */

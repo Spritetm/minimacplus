@@ -20,6 +20,24 @@ unsigned char *macRam;
 
 int rom_remap, video_remap=0, audio_remap=0;
 
+void m68k_instruction() {
+	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
+	int ok=0;
+	if (pc < 0x400000) {
+		if (rom_remap) {
+			ok=1;
+		}
+	} else if (pc >= 0x400000 && pc<0x500000) {
+		ok=1;
+	}
+	if (!ok) return;
+	pc&=0x1FFFF;
+	if (pc==0x7DCC) printf("Mon: SCSIReadSectors\n");
+	if (pc==0x7E4C) printf("Mon: SCSIReadSectors exit OK\n");
+	if (pc==0x7E56) printf("Mon: SCSIReadSectors exit FAIL\n");
+}
+
+
 unsigned int  m68k_read_memory_8(unsigned int address) {
 	unsigned int ret;
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
@@ -35,6 +53,7 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 		int romAdr=address-0x400000;
 		if (romAdr>=TME_ROMSIZE) {
 			printf("PC %x:Huh? Read from ROM mirror (%x)\n", pc, address);
+			ret=(address>>12); // ROM checks for same contents at 20000 and 40000 to determine if SCSI is present
 		} else {
 			ret=macRom[romAdr&(TME_ROMSIZE-1)];
 		}
@@ -43,7 +62,7 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		ret=iwmRead((address>>9)&0xf);
 	} else if (address >= 0x580000 && address < 0x600000) {
-		ret=ncrRead((address>>4)&0x7, (address>>7)&1);
+		ret=ncrRead((address>>4)&0x7, (address>>9)&1);
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
 		ret=0xff;
@@ -54,8 +73,8 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 
 void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
-	if (address < 0x400000 && !rom_remap) {
-		macRam[address & (TME_RAMSIZE-1)]=value;
+	if (address < 0x400000) {
+		if (!rom_remap) macRam[address & (TME_RAMSIZE-1)]=value;
 	} else if (address >= 0x600000 && address < 0xA00000) {
 		macRam[(address-0x600000) & (TME_RAMSIZE-1)]=value;
 	} else if (address >= 0xE80000 && address < 0xf00000) {
@@ -63,7 +82,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	} else if (address >= 0xc00000 && address < 0xe00000) {
 		iwmWrite((address>>9)&0xf, value);
 	} else if (address >= 0x580000 && address < 0x600000) {
-		ncrWrite((address>>4)&0x7, (address>>7)&1, value);
+		ncrWrite((address>>4)&0x7, (address>>9)&1, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -83,27 +102,28 @@ void printFps() {
 	oldtv.tv_usec=tv.tv_usec;
 }
 
-#define GRAN 100
 
 void tmeStartEmu(void *rom) {
 	int ca1=0, ca2=0;
 	int x, frame=0;
 	macRom=rom;
 	macRam=malloc(TME_RAMSIZE);
-	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0xaa;
+	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0;
 	rom_remap=1;
 	SCSIDevice *hd=hdCreate("hd.img");
 	ncrRegisterDevice(6, hd);
 	viaClear(VIA_PORTA, 0x7F);
 	viaSet(VIA_PORTA, 0x80);
+	viaClear(VIA_PORTA, 0xFF);
+	viaSet(VIA_PORTB, (1<<3));
 	m68k_init();
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
 	m68k_pulse_reset();
 	dispInit();
 	while(1) {
-		for (x=0; x<8000000/60; x+=GRAN) {
-			m68k_execute(GRAN);
-			viaStep(GRAN);
+		for (x=0; x<8000000/60; x+=10) {
+			m68k_execute(10);
+			viaStep(1); //should run at 783.36KHz
 		}
 		dispDraw(&macRam[video_remap?TME_SCREENBUF_ALT:TME_SCREENBUF]);
 		frame++;
@@ -150,16 +170,12 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	m68k_write_memory_8(address+1, value&0xff);
 }
 
-void m68k_int_ack(int irq) {
-	//Mac has level interrupts; no ack. Fake by raising the irq as soon as
-	//it's serviced.
-	m68k_set_irq(irq);
-}
-
 void viaCbPortAWrite(unsigned int val) {
+	int oldRomRemap=rom_remap;
 	video_remap=(val&(1<<6))?1:0;
 	rom_remap=(val&(1<<4))?1:0;
 	audio_remap=(val&(1<<3))?1:0;
+	if (oldRomRemap!=rom_remap) printf("ROM REMAP %d\n", rom_remap);
 }
 
 void viaCbPortBWrite(unsigned int val) {

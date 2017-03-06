@@ -55,13 +55,14 @@ void viaClear(int no, int mask) {
 
 void viaStep(int clockcycles) {
 	while(clockcycles--) {
-		if ((via.timer2!=0) || (via.acr&(1<<6))) via.timer2--;
-		if (via.timer1==0) {
+		if (via.timer1==1) {
 			via.ifr|=IFR_T1;
 			via.timer1=via.latch1;
 		}
-		if ((via.timer2!=0) || (via.acr&(1<<5))) via.timer2--;
+		if ((via.timer1!=0) || (via.acr&(1<<6))) via.timer1--;
+		via.timer2--;
 		if (via.timer2==0) {
+			//Actually shouldn't be set when timer2 gets 0 a 2nd time... ahwell.
 			via.ifr|=IFR_T2;
 		}
 	}
