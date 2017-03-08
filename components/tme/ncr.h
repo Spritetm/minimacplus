@@ -4,7 +4,7 @@
 
 typedef struct {
 	uint8_t cmd[256];
-	uint8_t data[1024*1024];
+	uint8_t data[32*1024];
 	uint8_t msg[128];
 	int cmdlen;
 	int datalen;

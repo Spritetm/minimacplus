@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include "config.h"
+#include "tmeconfig.h"
 #include "m68k.h"
 #include "disp.h"
 #include "iwm.h"
@@ -22,6 +22,7 @@ int rom_remap, video_remap=0, audio_remap=0;
 
 void m68k_instruction() {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
+	printf("Mon: %x\n", pc);
 	int ok=0;
 	if (pc < 0x400000) {
 		if (rom_remap) {
@@ -96,30 +97,52 @@ void printFps() {
 	if (oldtv.tv_sec!=0) {
 		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
 		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
-		printf("Speed: %d%%\n", 100000/msec);
+		printf("Speed: %d%%\n", (int)(100000/msec));
 	}
 	oldtv.tv_sec=tv.tv_sec;
 	oldtv.tv_usec=tv.tv_usec;
 }
 
+typedef void (m68ki_instruction_jump_call)(void);
 
-void tmeStartEmu(void *rom) {
+m68ki_instruction_jump_call **m68ki_instruction_jump_table;
+unsigned char **m68ki_cycles;
+
+
+void tmeStartEmu(void *ram, void *rom) {
 	int ca1=0, ca2=0;
 	int x, frame=0;
 	macRom=rom;
-	macRam=malloc(TME_RAMSIZE);
+	macRam=ram;
+	printf("Allocating mem for m68k structs\n");
+	m68ki_instruction_jump_table=malloc(sizeof(*m68ki_instruction_jump_table)*0x10000);
+	m68ki_cycles=malloc(sizeof(*m68ki_cycles)*4);
+	m68ki_cycles[0]=malloc(sizeof(**m68ki_cycles)*0x10000);
+	m68ki_cycles[1]=malloc(sizeof(**m68ki_cycles)*0x10000);
+	m68ki_cycles[2]=malloc(sizeof(**m68ki_cycles)*0x10000);
+	if (m68ki_instruction_jump_table==NULL || m68ki_cycles[2]==NULL) {
+		printf("Malloc of 68k emu structs failed.\n");
+		abort();
+	}
+	printf("Clearing ram...\n");
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0;
 	rom_remap=1;
+	printf("Creating HD and registering it...\n");
 	SCSIDevice *hd=hdCreate("hd.img");
 	ncrRegisterDevice(6, hd);
+	printf("Initializing m68k...\n");
 	viaClear(VIA_PORTA, 0x7F);
 	viaSet(VIA_PORTA, 0x80);
 	viaClear(VIA_PORTA, 0xFF);
 	viaSet(VIA_PORTB, (1<<3));
+	printf("Initializing m68k...\n");
 	m68k_init();
+	printf("Setting CPU type and resetting...");
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
 	m68k_pulse_reset();
+	printf("Display init...\n");
 	dispInit();
+	printf("Done! Running.\n");
 	while(1) {
 		for (x=0; x<8000000/60; x+=10) {
 			m68k_execute(10);

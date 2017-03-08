@@ -84,8 +84,6 @@ static const char* const stateNames[]={
 };
 
 static Ncr ncr;
-static SCSIDevice mydev;
-
 
 static void parseScsiCmd(int isRead) {
 	uint8_t *buf=ncr.data.cmd;

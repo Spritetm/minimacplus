@@ -23,7 +23,7 @@ void dispInit() {
 	drwsurf=SDL_CreateRGBSurfaceWithFormat(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_PIXELFORMAT_RGBA32);
 }
 
-void dispDraw(char *mem) {
+void dispDraw(uint8_t *mem) {
 	int x, y, z;
 	SDL_LockSurface(drwsurf);
 	uint32_t *pixels=(uint32_t*)drwsurf->pixels;

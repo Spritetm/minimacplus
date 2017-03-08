@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include "config.h"
+#include "tmeconfig.h"
 
 
 static void *loadRom(char *file) {
@@ -23,5 +23,6 @@ static void *loadRom(char *file) {
 
 int main(int argc, char **argv) {
 	void *rom=loadRom("rom.bin");
-	tmeStartEmu(rom);
+	void *ram=malloc(TME_RAMSIZE);
+	tmeStartEmu(ram, rom);
 }

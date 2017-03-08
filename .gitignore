@@ -1,4 +1,7 @@
+build/
+sdkconfig.old
+
 rom.bin
 rom/
 *.o
-tme
+components/tme/tme
