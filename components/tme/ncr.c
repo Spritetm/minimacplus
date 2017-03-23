@@ -271,7 +271,7 @@ void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 	} else if (addr==7) {
 		//Start DMA. We already do this using the mode bit.
 	}
-	printf("%08X SCSI: (dack %d), cur state %s %02x to %s (reg %d)\n", pc, dack, stateNames[ncr.state], val, regNamesW[addr], addr);
+//	printf("%08X SCSI: (dack %d), cur state %s %02x to %s (reg %d)\n", pc, dack, stateNames[ncr.state], val, regNamesW[addr], addr);
 }
 
 void ncrRegisterDevice(int id, SCSIDevice* dev){

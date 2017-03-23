@@ -103,10 +103,10 @@ void printFps() {
 	oldtv.tv_usec=tv.tv_usec;
 }
 
-typedef void (m68ki_instruction_jump_call)(void);
+//typedef void (m68ki_instruction_jump_call)(void);
 
-m68ki_instruction_jump_call **m68ki_instruction_jump_table;
-unsigned char **m68ki_cycles;
+//m68ki_instruction_jump_call **m68ki_instruction_jump_table;
+//unsigned char **m68ki_cycles;
 
 
 void tmeStartEmu(void *ram, void *rom) {
@@ -114,6 +114,7 @@ void tmeStartEmu(void *ram, void *rom) {
 	int x, frame=0;
 	macRom=rom;
 	macRam=ram;
+/*
 	printf("Allocating mem for m68k structs\n");
 	m68ki_instruction_jump_table=malloc(sizeof(*m68ki_instruction_jump_table)*0x10000);
 	m68ki_cycles=malloc(sizeof(*m68ki_cycles)*4);
@@ -124,6 +125,7 @@ void tmeStartEmu(void *ram, void *rom) {
 		printf("Malloc of 68k emu structs failed.\n");
 		abort();
 	}
+*/
 	printf("Clearing ram...\n");
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0;
 	rom_remap=1;
@@ -199,6 +201,7 @@ void viaCbPortAWrite(unsigned int val) {
 	rom_remap=(val&(1<<4))?1:0;
 	audio_remap=(val&(1<<3))?1:0;
 	if (oldRomRemap!=rom_remap) printf("ROM REMAP %d\n", rom_remap);
+	iwmSetHeadSel(val&(1<<5));
 }
 
 void viaCbPortBWrite(unsigned int val) {
