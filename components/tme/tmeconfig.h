@@ -1,0 +1,20 @@
+
+
+#define TME_ROMSIZE (128*1024)
+
+
+#define TME_MAC128K
+
+#ifndef TME_MAC128K
+
+#define TME_RAMSIZE (1024*1024)
+#define TME_SCREENBUF (TME_RAMSIZE-0x5900)
+#define TME_SCREENBUF_ALT (TME_RAMSIZE-0xD900)
+
+#else
+
+#define TME_RAMSIZE (128*1024)
+#define TME_SCREENBUF 0x1A700
+#define TME_SCREENBUF_ALT 0x12700
+
+#endif
