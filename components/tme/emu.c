@@ -11,9 +11,11 @@
 #include "disp.h"
 #include "iwm.h"
 #include "via.h"
+#include "scc.h"
 #include "rtc.h"
 #include "ncr.h"
 #include "hd.h"
+#include "mouse.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -48,7 +50,7 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 		} else {
 			ret=macRam[address & (TME_RAMSIZE-1)];
 		}
-	} else if (address >= 0x600000 && address < 0xA00000) {
+	} else if (address >= 0x600000 && address < 0x700000) {
 		ret=macRam[(address-0x600000) & (TME_RAMSIZE-1)];
 	} else if (address >= 0x400000 && address<0x500000) {
 		int romAdr=address-0x400000;
@@ -64,6 +66,8 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 		ret=iwmRead((address>>9)&0xf);
 	} else if (address >= 0x580000 && address < 0x600000) {
 		ret=ncrRead((address>>4)&0x7, (address>>9)&1);
+	} else if (address >= 0x800000 && address < 0xC00000) {
+		ret=sccRead(address);
 	} else {
 		printf("PC %x: Read from %x\n", pc, address);
 		ret=0xff;
@@ -84,6 +88,9 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 		iwmWrite((address>>9)&0xf, value);
 	} else if (address >= 0x580000 && address < 0x600000) {
 		ncrWrite((address>>4)&0x7, (address>>9)&1, value);
+	} else if (address >= 0x800000 && address < 0xC00000) {
+		sccWrite(address, value);
+		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}
@@ -103,29 +110,11 @@ void printFps() {
 	oldtv.tv_usec=tv.tv_usec;
 }
 
-//typedef void (m68ki_instruction_jump_call)(void);
-
-//m68ki_instruction_jump_call **m68ki_instruction_jump_table;
-//unsigned char **m68ki_cycles;
-
-
 void tmeStartEmu(void *ram, void *rom) {
 	int ca1=0, ca2=0;
-	int x, frame=0;
+	int x, m=0, frame=0;
 	macRom=rom;
 	macRam=ram;
-/*
-	printf("Allocating mem for m68k structs\n");
-	m68ki_instruction_jump_table=malloc(sizeof(*m68ki_instruction_jump_table)*0x10000);
-	m68ki_cycles=malloc(sizeof(*m68ki_cycles)*4);
-	m68ki_cycles[0]=malloc(sizeof(**m68ki_cycles)*0x10000);
-	m68ki_cycles[1]=malloc(sizeof(**m68ki_cycles)*0x10000);
-	m68ki_cycles[2]=malloc(sizeof(**m68ki_cycles)*0x10000);
-	if (m68ki_instruction_jump_table==NULL || m68ki_cycles[2]==NULL) {
-		printf("Malloc of 68k emu structs failed.\n");
-		abort();
-	}
-*/
 	printf("Clearing ram...\n");
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0;
 	rom_remap=1;
@@ -149,6 +138,16 @@ void tmeStartEmu(void *ram, void *rom) {
 		for (x=0; x<8000000/60; x+=10) {
 			m68k_execute(10);
 			viaStep(1); //should run at 783.36KHz
+			m++;
+			if (m>=1000) {
+				int r=mouseTick();
+				if (r&MOUSE_BTN) viaClear(VIA_PORTB, (1<<3)); else viaSet(VIA_PORTB, (1<<3));
+				if (r&MOUSE_QXB) viaClear(VIA_PORTB, (1<<4)); else viaSet(VIA_PORTB, (1<<4));
+				if (r&MOUSE_QYB) viaClear(VIA_PORTB, (1<<5)); else viaSet(VIA_PORTB, (1<<5));
+				sccSetDcd(SCC_CHANA, r&MOUSE_QXA);
+				sccSetDcd(SCC_CHANB, r&MOUSE_QYA);
+				m=0;
+			}
 		}
 		dispDraw(&macRam[video_remap?TME_SCREENBUF_ALT:TME_SCREENBUF]);
 		frame++;
@@ -167,6 +166,11 @@ void tmeStartEmu(void *ram, void *rom) {
 void viaIrq(int req) {
 //	printf("IRQ %d\n", req);
 	m68k_set_irq(req?1:0);
+}
+
+void sccIrq(int req) {
+//	printf("IRQ %d\n", req);
+	m68k_set_irq(req?2:0);
 }
 
 //Mac uses an 68008, which has an external 16-bit bus. Hence, it should be okay to do everything using 16-bit

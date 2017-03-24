@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <SDL2/SDL.h>
+#include "mouse.h"
 
 const int SCREEN_WIDTH = 512; 
 const int SCREEN_HEIGHT = 342;
@@ -23,6 +24,26 @@ void dispInit() {
 	drwsurf=SDL_CreateRGBSurfaceWithFormat(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_PIXELFORMAT_RGBA32);
 }
 
+void handleInput() {
+	static int btn=0;
+	static int oldx, oldy;
+	SDL_Event ev;
+	while(SDL_PollEvent(&ev)) {
+		if (ev.type == SDL_QUIT ) {
+			exit(0);
+		}
+		if (ev.type==SDL_MOUSEMOTION || ev.type==SDL_MOUSEBUTTONDOWN || ev.type==SDL_MOUSEBUTTONUP) {
+			int x, y;
+			SDL_GetMouseState(&x, &y);
+			if (ev.type==SDL_MOUSEBUTTONDOWN) btn=1;
+			if (ev.type==SDL_MOUSEBUTTONUP) btn=0;
+			mouseMove(x-oldx, y-oldy, btn);
+			oldx=x;
+			oldy=y;
+		}
+	}
+}
+
 void dispDraw(uint8_t *mem) {
 	int x, y, z;
 	SDL_LockSurface(drwsurf);
@@ -39,5 +60,8 @@ void dispDraw(uint8_t *mem) {
 	SDL_UnlockSurface(drwsurf);
 	SDL_BlitSurface(drwsurf, NULL, surf, NULL);
 	SDL_UpdateWindowSurface(win);
+	
+	//Also handle mouse here.
+	handleInput();
 }
 

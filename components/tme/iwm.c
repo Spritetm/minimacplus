@@ -1,7 +1,8 @@
 #include <stdio.h>
 
 /*
-At the moment, this only emulates enough of the IWM to make the Plus boot.
+At the moment, this only emulates enough of the IWM to make the Mac boot; it basically always reports that
+there's no floppy in the drive.
 */
 
 #define IWM_CA0		(1<<0)
@@ -44,9 +45,9 @@ unsigned int iwmRead(unsigned int addr) {
 	} else if (reg==IWM_Q6) {
 		//Status register
 		int iwmSel=iwmLines&(IWM_CA0|IWM_CA1|IWM_CA2);
-		if (iwmHeadSel) iwmSel|=IWM_SELECT; //Abusing this bit for the separate VIA-controlled SEL line
-		if (iwmSel==IWM_SELECT) val|=0x80; //No disk in drive.
-		if (iwmLines&IWM_ENABLE) val|=0x20; //enable
+		if (iwmHeadSel) iwmSel|=IWM_SELECT; //Abusing this bit for the separate VIA-controlled SEL line. This is NOT the drive select bit!
+		if (iwmSel==IWM_SELECT) val|=0x80; //Report: No disk in drive.
+		if (iwmLines&IWM_ENABLE) val|=0x20; //Report: enabled
 		val|=iwmModeReg&0x1F;
 //		printf("Read disk status %x\n", iwmLines);
 	} else if (reg==IWM_Q7) {
