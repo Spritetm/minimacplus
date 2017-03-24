@@ -26,7 +26,7 @@ $(COMPONENT_PATH)/musashi/m68kops_pre.c: $(COMPONENT_PATH)/musashi/m68kops_gen
 	cd $(COMPONENT_PATH)/musashi/; ./m68kops_gen > m68kops_pre.c
 
 $(COMPONENT_PATH)/musashi/m68kops_gen: $(COMPONENT_PATH)/musashi/m68kops_gen.c
-	cd $(COMPONENT_PATH)/musashi/; $(HOSTCC) -o m68kops_gen m68kops.c
+	cd $(COMPONENT_PATH)/musashi/; $(HOSTCC) -std=gnu99 -o m68kops_gen m68kops.c
 
 $(COMPONENT_PATH)/musashi/m68kmake: $(COMPONENT_PATH)/musashi/m68kmake.c
-	$(HOSTCC) -o $@ $^
+	$(HOSTCC) -std=gnu99 -o $@ $^
