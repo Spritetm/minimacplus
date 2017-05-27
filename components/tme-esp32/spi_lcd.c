@@ -16,10 +16,11 @@
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
 #include "esp_heap_alloc_caps.h"
+#include "mpumouse.h"
+#include "mouse.h"
 
 #define PIN_NUM_MISO 25
-#define PIN_NUM_MOSI 27
-//#define PIN_NUM_MOSI 23
+#define PIN_NUM_MOSI 23
 #define PIN_NUM_CLK  19
 #define PIN_NUM_CS   22
 
@@ -217,7 +218,7 @@ void IRAM_ATTR displayTask(void *arg) {
 		.quadhd_io_num=-1
 	};
 	spi_device_interface_config_t devcfg={
-		.clock_speed_hz=40000000,               //Clock out at 40 MHz. Yes, that's heavily overclocked.
+		.clock_speed_hz=26000000,               //Clock out at 40 MHz. Yes, that's heavily overclocked.
 		.mode=0,                                //SPI mode 0
 		.spics_io_num=PIN_NUM_CS,               //CS pin
 		.queue_size=10,                          //We want to be able to queue 7 transactions at a time
@@ -291,8 +292,11 @@ void IRAM_ATTR displayTask(void *arg) {
 
 
 void dispDraw(uint8_t *mem) {
+	int dx, dy, btn;
 	currFbPtr=mem;
 	xSemaphoreGive(dispSem);
+	mpuMouseGetDxDyBtn(&dx, &dy, &btn);
+	mouseMove(dx, dy, btn);
 }
 
 
