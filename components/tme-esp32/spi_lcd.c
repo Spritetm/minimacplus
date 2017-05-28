@@ -1,3 +1,4 @@
+#if 0
 /* SPI Master example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
@@ -309,3 +310,4 @@ void dispInit() {
 	xTaskCreatePinnedToCore(&displayTask, "display", 3000, NULL, 6, NULL, 1);
 #endif
 }
+#endif
