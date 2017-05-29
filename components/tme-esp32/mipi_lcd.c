@@ -196,21 +196,23 @@ int findMacVal(uint8_t *data, int x, int y) {
 //
 // Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
 
+#define SCALE_FACT 51 //Floating-point number, actually x/32. Divide mac reso by this to get lcd reso.
+
 int findPixelVal(uint8_t *data, int x, int y) {
-	int sx=(x*51); //32th is 512/320 -> scale 512 mac screen to 320 width
-	int sy=(y*51);
+	int sx=(x*SCALE_FACT); //32th is 512/320 -> scale 512 mac screen to 320 width
+	int sy=(y*SCALE_FACT);
 	//sx and sy are now 27.5 fixed point values for the 'real' mac-like components
 	int r,g,b;
 	if (((x+y)&1)) {
 		//pixel a
 		r=findMacVal(data, sx, sy);
-		b=findMacVal(data, sx+(51/3)*2, sy);
-		g=findMacVal(data, sx+(51/3), sy+(51/2));
+		b=findMacVal(data, sx+(SCALE_FACT/3)*2, sy);
+		g=findMacVal(data, sx+(SCALE_FACT/3), sy+(SCALE_FACT/2));
 	} else {
 		//pixel b
 		r=findMacVal(data, sx, sy+10);
-		b=findMacVal(data, sx+(51/3)*2, sy+(51/1));
-		g=findMacVal(data, sx+(51/3), sy);
+		b=findMacVal(data, sx+(SCALE_FACT/3)*2, sy+(SCALE_FACT/1));
+		g=findMacVal(data, sx+(SCALE_FACT/3), sy);
 	}
 	return ((r>>5)<<0)|((g>>4)<<5)|((b>>5)<<11);
 }
