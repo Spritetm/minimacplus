@@ -202,14 +202,14 @@ void mipiInit() {
 	spidev->dma_conf.val&=~(SPI_OUT_RST|SPI_IN_RST|SPI_AHBM_RST|SPI_AHBM_FIFO_RST);
 	//Reset timing
 	spidev->ctrl2.val=0;
-	spi_set_clock(spidev, 80000000, 20000000, 128);
+	spi_set_clock(spidev, 80000000, 40000000, 128);
 	
 	//Configure SPI host
 	spidev->ctrl.rd_bit_order=1; //LSB first
 	spidev->ctrl.wr_bit_order=1;
 	spidev->pin.ck_idle_edge=0;
-	spidev->user.ck_out_edge=0;
-	spidev->ctrl2.miso_delay_mode=2;
+	spidev->user.ck_out_edge=1;
+	spidev->ctrl2.miso_delay_mode=0;
 	spidev->ctrl.val &= ~(SPI_FREAD_DUAL|SPI_FREAD_QUAD|SPI_FREAD_DIO|SPI_FREAD_QIO);
 	spidev->user.val &= ~(SPI_FWRITE_DUAL|SPI_FWRITE_QUAD|SPI_FWRITE_DIO|SPI_FWRITE_QIO);
 	
