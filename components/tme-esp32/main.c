@@ -61,6 +61,6 @@ void app_main()
 	if (err!=ESP_OK) printf("Couldn't map bootrom part!\n");
 	printf("Starting emu...\n");
 //	xTaskCreatePinnedToCore(&mouseTask, "mouse", 6*1024, NULL, 6, NULL, 0);
-	xTaskCreatePinnedToCore(&emuTask, "emu", 6*1024, NULL, 5, NULL, 0);
+	xTaskCreatePinnedToCore(&emuTask, "emu", 8*1024, NULL, 5, NULL, 0);
 }
 

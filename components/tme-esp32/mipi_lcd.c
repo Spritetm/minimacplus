@@ -221,6 +221,8 @@ int findPixelVal(uint8_t *data, int x, int y) {
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
 
+#define LINESPERBUF 8
+
 void IRAM_ATTR displayTask(void *arg) {
 
 	mipiInit();
@@ -238,22 +240,29 @@ void IRAM_ATTR displayTask(void *arg) {
 	}
 	
 	printf("Inited.\n");
-	uint8_t img[641];
+	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
+	assert(img);
 
 	while(1) {
+		int l=0;
+		mipiResync();
 		xSemaphoreTake(dispSem, portMAX_DELAY);
 		uint8_t *myData=(uint8_t*)currFbPtr;
-		uint8_t img[641];
 		img[0]=0x2c;
+		uint8_t *p=&img[1];
 		for (int j=0; j<320; j++) {
-			uint8_t *p=&img[1];
 			for (int i=0; i<320; i++) {
 				int v=findPixelVal(myData, i, j);
 				*p++=(v&0xff);
 				*p++=(v>>8);
 			}
-			mipiDsiSendLong(0x39, img, sizeof(img)+4);
-			img[0]=0x3c;
+			l++;
+			if (l>=LINESPERBUF || j==319) {
+				//mipiDsiSendLong(0x39, img, (LINESPERBUF*320*2)+1);
+				img[0]=0x3c;
+				l=0;
+				*p=&img[1];
+			}
 		}
 	}
 }
