@@ -90,7 +90,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 		ncrWrite((address>>4)&0x7, (address>>9)&1, value);
 	} else if (address >= 0x800000 && address < 0xC00000) {
 		sccWrite(address, value);
-		printf("PC %x: Write to %x: %x\n", pc, address, value);
+//		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	} else {
 		printf("PC %x: Write to %x: %x\n", pc, address, value);
 	}

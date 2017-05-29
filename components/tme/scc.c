@@ -43,7 +43,7 @@ static Scc scc;
 static void raiseInt(int chan) {
 	if ((scc.wr1[chan]&1) && (scc.intpending&(~scc.intpendingOld))) {
 		scc.intpendingOld=scc.intpending;
-		printf("SCC int, pending %x\n", scc.intpending);
+//		printf("SCC int, pending %x\n", scc.intpending);
 		sccIrq(1);
 	}
 }
@@ -127,7 +127,7 @@ unsigned int sccRead(unsigned int addr) {
 	} else if (reg==15) {
 		val=scc.wr15[chan];
 	}
-	printf("SCC: read from chan %d reg %d val %x\n", chan, reg, val);
+//	printf("SCC: read from chan %d reg %d val %x\n", chan, reg, val);
 	return val;
 }
 

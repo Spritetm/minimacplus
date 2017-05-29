@@ -21,9 +21,6 @@
 #include "emu.h"
 #include "tmeconfig.h"
 
-#include "mpu6050.h"
-#include "mpumouse.h"
-
 unsigned char *romdata;
 
 void emuTask(void *pvParameters)
@@ -34,17 +31,6 @@ void emuTask(void *pvParameters)
 		abort();
 	}
 	tmeStartEmu(ram, romdata);
-}
-
-void mouseTask(void *pvParameters)
-{
-	printf("Starting mouse task...\n");
-	while(!mpu6050_init()) {
-		printf("Can't init MPU....\n");
-		vTaskDelay(100);
-	}
-
-	mpuMouseEmu();
 }
 
 
@@ -60,7 +46,6 @@ void app_main()
 	err=esp_partition_mmap(part, 0, 128*1024, SPI_FLASH_MMAP_DATA, (const void**)&romdata, &hrom);
 	if (err!=ESP_OK) printf("Couldn't map bootrom part!\n");
 	printf("Starting emu...\n");
-//	xTaskCreatePinnedToCore(&mouseTask, "mouse", 6*1024, NULL, 6, NULL, 0);
-	xTaskCreatePinnedToCore(&emuTask, "emu", 8*1024, NULL, 5, NULL, 0);
+	xTaskCreatePinnedToCore(&emuTask, "emu", 6*1024, NULL, 5, NULL, 0);
 }
 
