@@ -66,6 +66,19 @@ const DispPacket initPackets[]={
 	{0,0,0,{0}}
 };
 
+
+
+
+#define SCALE_FACT 51 //Floating-point number, actually x/32. Divide mac reso by this to get lcd reso.
+
+
+static uint8_t mask[512];
+
+static void calcLut() {
+	for (int i=0; i<512; i++) mask[i]=(1<<(7-(i&7)));
+}
+
+
 //Returns 0-1024
 int findMacVal(uint8_t *data, int x, int y) {
 	int a,b,c,d;
@@ -75,14 +88,14 @@ int findMacVal(uint8_t *data, int x, int y) {
 
 	if (ry>=342) return 0;
 
-	a=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+	a=data[ry*(512/8)+rx/8]&mask[rx];
 	rx++;
-	b=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+	b=data[ry*(512/8)+rx/8]&mask[rx];
 	rx--; ry++;
 	if (ry<342) {
-		c=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+		c=data[ry*(512/8)+rx/8]&mask[rx];
 		rx++;
-		d=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+		d=data[ry*(512/8)+rx/8]&mask[rx];
 	} else {
 		c=1;
 		d=1;
@@ -109,8 +122,6 @@ int findMacVal(uint8_t *data, int x, int y) {
 //
 // Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
 
-#define SCALE_FACT 51 //Floating-point number, actually x/32. Divide mac reso by this to get lcd reso.
-
 int findPixelVal(uint8_t *data, int x, int y) {
 	int sx=(x*SCALE_FACT); //32th is 512/320 -> scale 512 mac screen to 320 width
 	int sy=(y*SCALE_FACT);
@@ -134,7 +145,7 @@ int findPixelVal(uint8_t *data, int x, int y) {
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
 
-#define LINESPERBUF 1
+#define LINESPERBUF 8
 
 static void initLcd() {
 	mipiInit();
@@ -160,7 +171,7 @@ static void initLcd() {
 void IRAM_ATTR displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
-
+	calcLut();
 
 	while(1) {
 		int l=0;

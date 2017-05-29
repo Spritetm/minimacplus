@@ -6,6 +6,8 @@
 #include "crc16-ccitt.h"
 #include "mipi.h"
 
+#define NO_CRC 1
+
 //Reminder; MIPI is very LSB-first.
 typedef struct {
 	uint8_t sot; //should be 0xB8
@@ -67,7 +69,11 @@ void mipiDsiSendLong(int type, uint8_t *data, int len) {
 	p.datatype=type;
 	p.wordcount=mipiword(len);
 	p.ecc=calc_ecc((uint8_t*)&p.datatype);
+#if NO_CRC
+	int crc=0;
+#else
 	int crc=crc16_ccitt(0xFFFF, data, len);
+#endif
 	footer[0]=(crc&0xff);
 	footer[1]=(crc>>8);
 	footer[2]=(crc&0x8000)?0:0xff; //need one last level transition at end

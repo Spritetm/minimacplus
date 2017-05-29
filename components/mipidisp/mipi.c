@@ -120,10 +120,6 @@ Brings up the clock and data lines to LP11, resyncs the flipflop, restarts the c
 */
 void mipiResync() {
 	//Get clock and data transceivers back in idle state
-//	gpio_set_level(GPIO_D0N_LS, 1);
-//	SOTEOTWAIT();
-//	gpio_set_level(GPIO_D0P_LS, 1);
-
 	gpio_set_level(GPIO_CLKN_LS, 1);
 	SOTEOTWAIT();
 	gpio_set_level(GPIO_CLKP_LS, 1);
@@ -157,13 +153,8 @@ void mipiResync() {
 	spidev->dma_out_link.start=1;
 	spidev->user.usr_mosi=1;
 	spidev->cmd.usr=1;
-
-	//Data pair is in LP11 now. We should go LP01, LP00 to enable HS receivers
-//	gpio_set_level(GPIO_D0P_LS, 0);
-//	SOTEOTWAIT();
-//	gpio_set_level(GPIO_D0N_LS, 0);
-
 }
+
 void mipiInit() {
 	esp_err_t ret;
 	bool io_native=false;
