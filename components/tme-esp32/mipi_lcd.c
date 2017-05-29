@@ -221,7 +221,7 @@ int findPixelVal(uint8_t *data, int x, int y) {
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
 
-#define LINESPERBUF 8
+#define LINESPERBUF 1
 
 void IRAM_ATTR displayTask(void *arg) {
 
