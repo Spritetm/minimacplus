@@ -153,6 +153,68 @@ DispPacket initPackets[]={
 	{0,0,0,{0}}
 };
 
+//Returns 0-1024
+int findMacVal(uint8_t *data, int x, int y) {
+	int a,b,c,d;
+	int v=0;
+	int rx=x/32;
+	int ry=y/32;
+
+	if (ry>=342) return 0;
+
+	a=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+	rx++;
+	b=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+	rx--; ry++;
+	if (ry<342) {
+		c=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+		rx++;
+		d=data[ry*(512/8)+rx/8]&(1<<(7-(rx&7)));
+	} else {
+		c=1;
+		d=1;
+	}
+
+	if (!a) v+=(31-(x&31))*(31-(y&31));
+	if (!b) v+=(x&31)*(31-(y&31));
+	if (!c) v+=(31-(x&31))*(y&31);
+	if (!d) v+=(x&31)*(y&31);
+
+	return v;
+}
+
+
+// Even pixels: a
+//  RRBB
+//   GG
+//
+// Odd pixels: b
+//   GG
+//  RRBB
+//
+// Even lines start with an even pixel, odd lines with an odd pixel.
+//
+// Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
+
+int findPixelVal(uint8_t *data, int x, int y) {
+	int sx=(x*51); //32th is 512/320 -> scale 512 mac screen to 320 width
+	int sy=(y*51);
+	//sx and sy are now 27.5 fixed point values for the 'real' mac-like components
+	int r,g,b;
+	if (((x+y)&1)) {
+		//pixel a
+		r=findMacVal(data, sx, sy);
+		b=findMacVal(data, sx+(51/3)*2, sy);
+		g=findMacVal(data, sx+(51/3), sy+(51/2));
+	} else {
+		//pixel b
+		r=findMacVal(data, sx, sy+10);
+		b=findMacVal(data, sx+(51/3)*2, sy+(51/1));
+		g=findMacVal(data, sx+(51/3), sy);
+	}
+	return ((r>>5)<<0)|((g>>4)<<5)|((b>>5)<<11);
+}
+
 
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
@@ -184,17 +246,12 @@ void IRAM_ATTR displayTask(void *arg) {
 		for (int j=0; j<320; j++) {
 			uint8_t *p=&img[1];
 			for (int i=0; i<320; i++) {
-				if (myData[i/8]&(1<<(7-(i&7)))) {
-					*p++=0;
-					*p++=0;
-				} else {
-					*p++=0xFF;
-					*p++=0xFF;
-				}
+				int v=findPixelVal(myData, i, j);
+				*p++=(v&0xff);
+				*p++=(v>>8);
 			}
 			mipiDsiSendLong(0x39, img, sizeof(img)+4);
 			img[0]=0x3c;
-			myData+=(512/8);
 		}
 	}
 }
