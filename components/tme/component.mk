@@ -35,6 +35,8 @@ COMPONENT_EXTRA_CLEAN := $(addprefix $(COMPONENT_PATH)/musashi/,$(MUSASHI_GEN_SR
 #musashi/m68kopdm.o: CFLAGS += -O3
 #musashi/m68kopnz.o: CFLAGS += -O3
 
+emu.o: CFLAGS += -O3
+
 define makeiram
 $(1): $(2)
 	$$(summary) OBJCOPY $(2)
