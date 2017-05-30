@@ -168,7 +168,7 @@ static void initLcd() {
 	printf("Display inited.\n");
 }
 
-void IRAM_ATTR displayTask(void *arg) {
+void displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
 	calcLut();

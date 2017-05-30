@@ -116,7 +116,8 @@ typedef void (*m68ki_instruction_jump_call)(void);
 
 extern const m68ki_instruction_jump_call m68ki_instruction_jump_table[];
 //extern void (*m68ki_instruction_jump_table)(void); /* opcode handler jump table */
-extern const unsigned char m68ki_cycles[3][0x10000];
+//extern const unsigned char m68ki_cycles[1][0x10000];
+extern const unsigned char m68ki_cycles[1][0x10000];
 
 
 /* ======================================================================== */
@@ -183,8 +184,9 @@ int main(int argc, char **argv) {
 	}
 	printf("};\n\n");
 
-	printf("const unsigned char m68ki_cycles[%d][0x10000]={\n", NUM_CPU_TYPES);
-	for (int x=0; x<NUM_CPU_TYPES; x++) {
+	printf("const unsigned char m68ki_cycles[%d][0x10000]={\n", 1);//NUM_CPU_TYPES);
+//	for (int x=0; x<NUM_CPU_TYPES; x++) {
+	for (int x=0; x<1; x++) {
 		printf("\t{");
 		for (int y=0; y<0x10000; y++) {
 			if ((y&15)==0) printf("\n\t\t");

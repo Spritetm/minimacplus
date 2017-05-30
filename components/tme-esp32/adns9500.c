@@ -98,8 +98,9 @@ void adns900_get_dxdybtn(int *x, int *y, int *btn) {
 	sx|=adnsRead(0x4)<<8;
 	sy=adnsRead(0x5);
 	sy|=adnsRead(0x6)<<8;
-//	printf("Mouse: %d %d\n", sx, sy);
+	ets_delay_us(100);
+	*btn=gpio_get_level(ADNS_MISO)?0:1;
+//	printf("Mouse: %d %d %d\n", sx, sy, *btn);
 	*x=sx;
 	*y=sy;
-	*btn=gpio_get_level(ADNS_MISO)?0:1;
 }

@@ -1975,7 +1975,8 @@ typedef void (*m68ki_instruction_jump_call)(void);
 
 extern const m68ki_instruction_jump_call m68ki_instruction_jump_table[];
 //extern void (*m68ki_instruction_jump_table)(void); /* opcode handler jump table */
-extern const unsigned char m68ki_cycles[3][0x10000];
+//extern const unsigned char m68ki_cycles[1][0x10000];
+extern const unsigned char m68ki_cycles[1][0x10000];
 
 
 /* ======================================================================== */
