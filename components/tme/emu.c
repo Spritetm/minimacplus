@@ -16,6 +16,8 @@
 #include "ncr.h"
 #include "hd.h"
 #include "mouse.h"
+#include <stdbool.h>
+#include "esp_heap_alloc_caps.h"
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -105,6 +107,7 @@ void printFps() {
 		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
 		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
 		printf("Speed: %d%%\n", (int)(100000/msec));
+		printf("Mem free: %dKiB 8-bit, %dKiB 32-bit\n", xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT)/1024, xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT)/1024);
 	}
 	oldtv.tv_sec=tv.tv_sec;
 	oldtv.tv_usec=tv.tv_usec;

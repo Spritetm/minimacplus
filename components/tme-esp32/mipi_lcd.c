@@ -145,7 +145,7 @@ int findPixelVal(uint8_t *data, int x, int y) {
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
 
-#define LINESPERBUF 8
+#define LINESPERBUF 32
 
 static void initLcd() {
 	mipiInit();
@@ -173,6 +173,7 @@ void IRAM_ATTR displayTask(void *arg) {
 	assert(img);
 	calcLut();
 
+	int firstrun=1;
 	while(1) {
 		int l=0;
 		mipiResync();
@@ -192,6 +193,8 @@ void IRAM_ATTR displayTask(void *arg) {
 				img[0]=0x3c;
 				l=0;
 				p=&img[1];
+				if (!firstrun && j>=200) break; //no need to render black bar in subsequent times
+				firstrun=0;
 			}
 		}
 	}
@@ -205,6 +208,7 @@ void dispDraw(uint8_t *mem) {
 	xSemaphoreGive(dispSem);
 	adns900_get_dxdybtn(&dx, &dy, &btn);
 	mouseMove(dx, dy, btn);
+//	printf("Mouse: %d %d\n", dx, dy);
 }
 
 

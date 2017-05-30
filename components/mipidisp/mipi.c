@@ -208,7 +208,7 @@ void mipiInit() {
 	spidev->ctrl.rd_bit_order=1; //LSB first
 	spidev->ctrl.wr_bit_order=1;
 	spidev->pin.ck_idle_edge=0;
-	spidev->user.ck_out_edge=1;
+	spidev->user.ck_out_edge=1; //0 for <40MHz?
 	spidev->ctrl2.miso_delay_mode=0;
 	spidev->ctrl.val &= ~(SPI_FREAD_DUAL|SPI_FREAD_QUAD|SPI_FREAD_DIO|SPI_FREAD_QIO);
 	spidev->user.val &= ~(SPI_FWRITE_DUAL|SPI_FWRITE_QUAD|SPI_FWRITE_DIO|SPI_FWRITE_QIO);
