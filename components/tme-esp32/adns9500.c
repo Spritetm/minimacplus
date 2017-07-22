@@ -15,7 +15,7 @@
 #define ADNS_CS 22
 
 //#define DELAY() asm("nop; nop; nop; nop;nop; nop; nop; nop;nop; nop; nop; nop;nop; nop; nop; nop;")
-#define DELAY() ets_delay_us(10);
+#define DELAY() ets_delay_us(20);
 
 static void adnsWrite(int adr, int val) {
 	int data=((adr|0x80)<<8)|val;
