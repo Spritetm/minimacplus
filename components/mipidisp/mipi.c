@@ -1,4 +1,3 @@
-#if 1
 /*
 Thing to emulate single-lane MIPI using a flipflop and a bunch of resistors.
 */
@@ -47,62 +46,62 @@ static SemaphoreHandle_t sem=NULL;
 //ToDo: move these to spi_common...
 
 static int spi_freq_for_pre_n(int fapb, int pre, int n) {
-    return (fapb / (pre * n));
+	return (fapb / (pre * n));
 }
 /*
  * Set the SPI clock to a certain frequency. Returns the effective frequency set, which may be slightly
  * different from the requested frequency.
  */
 static int spi_set_clock(spi_dev_t *hw, int fapb, int hz, int duty_cycle) {
-    int pre, n, h, l, eff_clk;
+	int pre, n, h, l, eff_clk;
 
-    //In hw, n, h and l are 1-64, pre is 1-8K. Value written to register is one lower than used value.
-    if (hz>((fapb/4)*3)) {
-        //Using Fapb directly will give us the best result here.
-        hw->clock.clkcnt_l=0;
-        hw->clock.clkcnt_h=0;
-        hw->clock.clkcnt_n=0;
-        hw->clock.clkdiv_pre=0;
-        hw->clock.clk_equ_sysclk=1;
-        eff_clk=fapb;
-    } else {
-        //For best duty cycle resolution, we want n to be as close to 32 as possible, but
-        //we also need a pre/n combo that gets us as close as possible to the intended freq.
-        //To do this, we bruteforce n and calculate the best pre to go along with that.
-        //If there's a choice between pre/n combos that give the same result, use the one
-        //with the higher n.
-        int bestn=-1;
-        int bestpre=-1;
-        int besterr=0;
-        int errval;
-        for (n=2; n<=64; n++) { //Start at 2: we need to be able to set h/l so we have at least one high and one low pulse.
-            //Effectively, this does pre=round((fapb/n)/hz).
-            pre=((fapb/n)+(hz/2))/hz;
-            if (pre<=0) pre=1;
-            if (pre>8192) pre=8192;
-            errval=abs(spi_freq_for_pre_n(fapb, pre, n)-hz);
-            if (bestn==-1 || errval<=besterr) {
-                besterr=errval;
-                bestn=n;
-                bestpre=pre;
-            }
-        }
+	//In hw, n, h and l are 1-64, pre is 1-8K. Value written to register is one lower than used value.
+	if (hz>((fapb/4)*3)) {
+		//Using Fapb directly will give us the best result here.
+		hw->clock.clkcnt_l=0;
+		hw->clock.clkcnt_h=0;
+		hw->clock.clkcnt_n=0;
+		hw->clock.clkdiv_pre=0;
+		hw->clock.clk_equ_sysclk=1;
+		eff_clk=fapb;
+	} else {
+		//For best duty cycle resolution, we want n to be as close to 32 as possible, but
+		//we also need a pre/n combo that gets us as close as possible to the intended freq.
+		//To do this, we bruteforce n and calculate the best pre to go along with that.
+		//If there's a choice between pre/n combos that give the same result, use the one
+		//with the higher n.
+		int bestn=-1;
+		int bestpre=-1;
+		int besterr=0;
+		int errval;
+		for (n=2; n<=64; n++) { //Start at 2: we need to be able to set h/l so we have at least one high and one low pulse.
+			//Effectively, this does pre=round((fapb/n)/hz).
+			pre=((fapb/n)+(hz/2))/hz;
+			if (pre<=0) pre=1;
+			if (pre>8192) pre=8192;
+			errval=abs(spi_freq_for_pre_n(fapb, pre, n)-hz);
+			if (bestn==-1 || errval<=besterr) {
+				besterr=errval;
+				bestn=n;
+				bestpre=pre;
+			}
+		}
 
-        n=bestn;
-        pre=bestpre;
-        l=n;
-        //This effectively does round((duty_cycle*n)/256)
-        h=(duty_cycle*n+127)/256;
-        if (h<=0) h=1;
+		n=bestn;
+		pre=bestpre;
+		l=n;
+		//This effectively does round((duty_cycle*n)/256)
+		h=(duty_cycle*n+127)/256;
+		if (h<=0) h=1;
 
-        hw->clock.clk_equ_sysclk=0;
-        hw->clock.clkcnt_n=n-1;
-        hw->clock.clkdiv_pre=pre-1;
-        hw->clock.clkcnt_h=h-1;
-        hw->clock.clkcnt_l=l-1;
-        eff_clk=spi_freq_for_pre_n(fapb, pre, n);
-    }
-    return eff_clk;
+		hw->clock.clk_equ_sysclk=0;
+		hw->clock.clkcnt_n=n-1;
+		hw->clock.clkdiv_pre=pre-1;
+		hw->clock.clkcnt_h=h-1;
+		hw->clock.clkcnt_l=l-1;
+		eff_clk=spi_freq_for_pre_n(fapb, pre, n);
+	}
+	return eff_clk;
 }
 
 static void spidma_intr(void *arg) {
@@ -152,6 +151,12 @@ void mipiResync() {
 	spidev->dma_out_link.addr=(int)(&idle_dmadesc[0]) & 0xFFFFF;
 	spidev->dma_out_link.start=1;
 	spidev->user.usr_mosi=1;
+
+/* HACK for inverted clock */
+	spidev->user.usr_addr=1;
+	spidev->user1.usr_addr_bitlen=0; //1 addr bit
+/* End hack */
+
 	spidev->cmd.usr=1;
 }
 
@@ -287,4 +292,3 @@ void mipiSend(uint8_t *data, int len) {
 	mipiSendMultiple(&data, &len, 1);
 }
 
-#endif

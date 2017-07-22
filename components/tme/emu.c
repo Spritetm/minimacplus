@@ -17,7 +17,8 @@
 #include "hd.h"
 #include "mouse.h"
 #include <stdbool.h>
-#include "esp_heap_alloc_caps.h"
+#include "esp_heap_caps.h"
+#include <byteswap.h>
 
 unsigned char *macRom;
 unsigned char *macRam;
@@ -102,9 +103,9 @@ typedef struct {
 	};
 } MemmapEnt;
 
+#define MEMMAP_ES 0x20000 //entry size
 #define MEMMAP_MAX_ADDR 0x1000000
-#define MEMMAP_ES 0x20000
-//Memmap describing 128 128K blocks of memory, from 0 to 0x1000000.
+//Memmap describing 128 128K blocks of memory, from 0 to 0x1000000 (16MiB).
 MemmapEnt memmap[128];
 
 static void regenMemmap(int remapRom) {
@@ -179,7 +180,9 @@ const inline static MemmapEnt *getMmmapEnt(const unsigned int address) {
 unsigned int  m68k_read_memory_8(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		return mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		uint8_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		return *p;
 	} else {
 		return mmEnt->cb(address, 0, 0);
 	}
@@ -188,8 +191,9 @@ unsigned int  m68k_read_memory_8(unsigned int address) {
 unsigned int  m68k_read_memory_16(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		uint8_t *p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
-		return (p[0]<<8)|(p[1]);
+		uint16_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		return __bswap_16(*p);
 	} else {
 		unsigned int ret;
 		ret=mmEnt->cb(address, 0, 0)<<8;
@@ -201,8 +205,9 @@ unsigned int  m68k_read_memory_16(unsigned int address) {
 unsigned int  m68k_read_memory_32(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		uint8_t *p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
-		return (p[0]<<24)|(p[1]<<16)|(p[2]<<8)|(p[3]);
+		uint32_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		return __bswap_32(*p);
 	} else {
 		unsigned int ret;
 		ret=mmEnt->cb(address, 0, 0)<<24;
@@ -216,7 +221,9 @@ unsigned int  m68k_read_memory_32(unsigned int address) {
 void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		mmEnt->memAddr[address&(MEMMAP_ES-1)]=value;
+		uint8_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		*p=value;
 	} else {
 		mmEnt->cb(address, value, 1);
 	}
@@ -225,9 +232,9 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		uint8_t *p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
-		p[0]=(value>>8);
-		p[1]=(value>>0);
+		uint16_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		*p=__bswap_16(value);
 	} else {
 		mmEnt->cb(address, (value>>8)&0xff, 1);
 		mmEnt->cb(address+1, (value>>0)&0xff, 1);
@@ -238,11 +245,9 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
 void m68k_write_memory_32(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
-		uint8_t *p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
-		p[0]=(value>>24);
-		p[1]=(value>>16);
-		p[2]=(value>>8);
-		p[3]=(value>>0);
+		uint32_t *p;
+		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		*p=__bswap_32(value);
 	} else {
 		mmEnt->cb(address, (value>>24)&0xff, 1);
 		mmEnt->cb(address+1, (value>>16)&0xff, 1);
@@ -261,7 +266,7 @@ void printFps() {
 		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
 		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
 		printf("Speed: %d%%\n", (int)(100000/msec));
-		printf("Mem free: %dKiB 8-bit, %dKiB 32-bit\n", xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT)/1024, xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT)/1024);
+//		printf("Mem free: %dKiB 8-bit, %dKiB 32-bit\n", xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT)/1024, xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT)/1024);
 	}
 	oldtv.tv_sec=tv.tv_sec;
 	oldtv.tv_usec=tv.tv_usec;
