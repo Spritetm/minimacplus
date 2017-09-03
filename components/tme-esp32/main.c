@@ -25,12 +25,7 @@ unsigned char *romdata;
 
 void emuTask(void *pvParameters)
 {
-	void *ram=malloc(TME_RAMSIZE);
-	if (ram==NULL) {
-		printf("Couldn't allocate main ram.\n");
-		abort();
-	}
-	tmeStartEmu(ram, romdata);
+	tmeStartEmu(romdata);
 }
 
 

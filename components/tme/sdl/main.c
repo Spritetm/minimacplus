@@ -23,6 +23,5 @@ static void *loadRom(char *file) {
 
 int main(int argc, char **argv) {
 	void *rom=loadRom("rom.bin");
-	void *ram=malloc(TME_RAMSIZE);
-	tmeStartEmu(ram, rom);
+	tmeStartEmu(rom);
 }

@@ -5,7 +5,7 @@
 #include "ncr.h"
 #include "hd.h"
 #include "esp_partition.h"
-#include "esp_heap_alloc_caps.h"
+#include "hexdump.h"
 
 typedef struct {
 	const esp_partition_t* part;
@@ -25,18 +25,23 @@ const uint8_t inq_resp[95]={
 	'1','.','0',' ',' ',' ',' ',' ', //prod rev lvl
 };
 
-static uint8_t bouncebuffer[512];
-
 static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len, unsigned int lba, void *arg) {
 	int ret=0;
 	static uint8_t *bb=NULL;
 	HdPriv *hd=(HdPriv*)arg;
 	if (cmd==0x8 || cmd==0x28) { //read
 		printf("HD: Read %d bytes from LBA %d.\n", len*512, lba);
-		for (int i=0; i<len; i++) {
-			esp_partition_read(hd->part, (lba+i)*512, bouncebuffer, 512);
-			memcpy(&data->data[i*512], bouncebuffer, len*512);
-		}
+#if 0	//spi ram read/write does not play well with flash reads
+
+		assert(esp_partition_read(hd->part, lba*512, data->data, len*512)==ESP_OK);
+#else
+		uint8_t *buf;
+		spi_flash_mmap_handle_t handle;
+		esp_partition_mmap(hd->part, lba*512, len*512, SPI_FLASH_MMAP_DATA, &buf, &handle);
+		memcpy(data->data, buf, len*512);
+		spi_flash_munmap(handle);
+#endif
+//		hexdump(data->data, len*512);
 		ret=len*512;
 	} else if (cmd==0x12) { //inquiry
 		printf("HD: Inquery\n");

@@ -62,7 +62,7 @@ int adns9500_init() {
 			.pin_bit_mask=(1<<ADNS_MISO), 
 			.mode=GPIO_MODE_INPUT, 
 			.pull_up_en=GPIO_PULLUP_ENABLE, 
-			.pull_down_en=GPIO_PULLDOWN_DISABLE, 
+//			.pull_down_en=GPIO_PULLDOWN_DISABLE, 
 			.intr_type=GPIO_PIN_INTR_DISABLE
 		}
 	};

@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "emu.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <string.h>
 #include "tmeconfig.h"
 #include "m68k.h"
 #include "disp.h"
@@ -19,9 +21,20 @@
 #include <stdbool.h>
 #include "esp_heap_caps.h"
 #include <byteswap.h>
+#include "esp_spiram.h"
+
+
 
 unsigned char *macRom;
+
+#if (TME_CACHESIZE!=0)
+#define USE_EXTERNAL_RAM 1
+#else
+#define USE_EXTERNAL_RAM 0
 unsigned char *macRam;
+#endif
+
+#define MEMADDR_DUMMY_CACHE (void*)1
 
 int rom_remap, video_remap=0, audio_remap=0;
 
@@ -106,12 +119,12 @@ typedef struct {
 #define MEMMAP_ES 0x20000 //entry size
 #define MEMMAP_MAX_ADDR 0x1000000
 //Memmap describing 128 128K blocks of memory, from 0 to 0x1000000 (16MiB).
-MemmapEnt memmap[128];
+MemmapEnt memmap[MEMMAP_MAX_ADDR/MEMMAP_ES];
 
 static void regenMemmap(int remapRom) {
 	int i;
 	//Default handler
-	for (i=0; i<128; i++) {
+	for (i=0; i<MEMMAP_MAX_ADDR/MEMMAP_ES; i++) {
 		memmap[i].memAddr=0;
 		memmap[i].cb=unhandledAccessCb;
 	}
@@ -128,7 +141,11 @@ static void regenMemmap(int remapRom) {
 		}
 	} else {
 		for (i=0; i<0x400000/MEMMAP_ES; i++) {
+#if USE_EXTERNAL_RAM
+			memmap[i].memAddr=MEMADDR_DUMMY_CACHE;
+#else
 			memmap[i].memAddr=&macRam[(i*MEMMAP_ES)&(TME_RAMSIZE-1)];
+#endif
 			memmap[i].flags=0;
 		}
 	}
@@ -150,7 +167,11 @@ static void regenMemmap(int remapRom) {
 
 	//0x600000-0x700000 is RAM
 	for (i=0x600000/MEMMAP_ES; i<0x700000/MEMMAP_ES; i++) {
+#if USE_EXTERNAL_RAM
+		memmap[i].memAddr=MEMADDR_DUMMY_CACHE;
+#else
 		memmap[i].memAddr=&macRam[(i*MEMMAP_ES)&(TME_RAMSIZE-1)];
+#endif
 		memmap[i].flags=0;
 	}
 
@@ -172,27 +193,166 @@ static void regenMemmap(int remapRom) {
 	}
 }
 
+uint8_t *macFb[2];
+
+
+#if (USE_EXTERNAL_RAM)
+
+//Keep these things powers-of-2 please.
+#define CACHESIZE TME_CACHESIZE
+#define CACHEITEMSIZE (1*1024)
+#define CACHEENTCNT ((TME_RAMSIZE)/CACHEITEMSIZE)
+#define CACHESLOTCNT (CACHESIZE/CACHEITEMSIZE)
+
+#define FBSLOTCNT ((22*1024+(CACHEITEMSIZE-1))/CACHEITEMSIZE)
+
+
+typedef struct {
+	uint8_t *mem;
+	int ent;
+} CacheSlot;
+
+#define NO_ENT 0xFF
+
+static uint8_t cacheEnt[CACHEENTCNT];
+static CacheSlot cacheSlot[CACHESLOTCNT+FBSLOTCNT*2];
+
+static int cacheSwapPos=0;
+
+#define MMAP_RAM_PTR(ent, addr) ((ent->memAddr==MEMADDR_DUMMY_CACHE)?getRamPtr(addr&(TME_RAMSIZE-1)):&ent->memAddr[addr&(MEMMAP_ES-1)])
+
+/*
+Warning: This malfunctions if e.g. a 32-bit val starting at an address [1-3] from the end of the region is requested.
+Luckily, on the 68000 itself this leads to an exception and should never happen.
+*/
+static inline uint8_t *getRamPtr(const unsigned int address) {
+	assert(address<TME_RAMSIZE);
+	uint16_t slot=cacheEnt[address/CACHEITEMSIZE];
+	if (slot==NO_ENT) {
+		//Invalid entry. Find oldest entry, swap to RAM, load this entry, return ptr.
+		//We use a stupid round-robin exchange thing for killing old pages for now... ToDo: make more intelligent.
+		cacheSwapPos++;
+		if (cacheSwapPos>=CACHESLOTCNT) cacheSwapPos=0;
+		slot=cacheSwapPos;
+		//Write old data.
+		int oldaddr=cacheSlot[slot].ent*CACHEITEMSIZE;
+		esp_spiram_write(oldaddr, cacheSlot[slot].mem, CACHEITEMSIZE);
+		cacheEnt[cacheSlot[slot].ent]=NO_ENT;
+		//Read new data.
+		cacheSlot[slot].ent=address/CACHEITEMSIZE;
+		int newaddr=cacheSlot[slot].ent*CACHEITEMSIZE;;
+		esp_spiram_read(newaddr, cacheSlot[slot].mem, CACHEITEMSIZE);
+		cacheEnt[address/CACHEITEMSIZE]=slot;
+//		printf("CACHE SWAPOUT: slot %d address %x -> address %x\n", slot, oldaddr, newaddr);
+	}
+	return cacheSlot[slot].mem+(address&(CACHEITEMSIZE-1));
+}
+
+static void ramInit() {
+	printf("Using external SPI memory as Mac RAM\n");
+
+#if 1
+	char obuf[128], ibuf[128];
+	for (int i=0; i<128; i++) obuf[i]=rand();
+	esp_spiram_write(0, obuf, 128);
+	esp_spiram_read(0, ibuf, 128);
+	if (memcmp(obuf, ibuf, 128)!=0) {
+		printf("Error: External SPI ram is not stable.\n");
+		abort();
+	}
+#endif
+
+	for (int x=0; x<CACHEENTCNT; x++) {
+		cacheEnt[x]=NO_ENT;
+	}
+	//Initialize the cache to point to the first few slots of memory.
+	for (int x=0; x<CACHESLOTCNT; x++) {
+		cacheEnt[x]=x;
+		cacheSlot[x].ent=x;
+		cacheSlot[x].mem=malloc(CACHEITEMSIZE);
+		if (!cacheSlot[x].mem) {
+			printf("Could not allocate memory for cache slot %d\n", x);
+			abort();
+		}
+		memset(cacheSlot[x].mem, 0, CACHEITEMSIZE);
+	}
+
+	//Framebuffer is dedicated memory. Allocate and set in cache set.
+	int sz=FBSLOTCNT*CACHEITEMSIZE;
+	macFb[0]=malloc(sz);
+	macFb[1]=malloc(sz);
+	if (!macFb[0] || !macFb[1]) {
+		printf("Couldn't allocate framebuffer memory!\n");
+		abort();
+	}
+	memset(macFb[0], 0xF0, sz);
+	memset(macFb[1], 0x0F, sz);
+	for (int i=0; i<FBSLOTCNT; i++) {
+		cacheSlot[CACHESLOTCNT+i].mem=macFb[0]+i*CACHEITEMSIZE;
+		cacheEnt[(TME_SCREENBUF/CACHEITEMSIZE)+i]=CACHESLOTCNT+i;
+		cacheSlot[CACHESLOTCNT+FBSLOTCNT+i].mem=macFb[1]+i*CACHEITEMSIZE;
+		cacheEnt[(TME_SCREENBUF_ALT/CACHEITEMSIZE)+i]=CACHESLOTCNT+FBSLOTCNT+i;
+	}
+	//Fbs probably are aligned with cache page size, but de-aligned with visibe image. Fix that.
+	macFb[0]=getRamPtr(TME_SCREENBUF);
+	macFb[1]=getRamPtr(TME_SCREENBUF_ALT);
+
+#if 0
+	printf("Doing mem/cache test\n");
+	srand(0);
+	for (int i=0; i<TME_RAMSIZE; i+=4) {
+		uint32_t *p=(uint32_t*)getRamPtr(i^0x25A500);
+		*p=rand();
+	}
+	
+	printf("Readback...\n");
+	srand(0);
+	for (int i=0; i<TME_RAMSIZE; i+=4) {
+		uint32_t *p=(uint32_t*)getRamPtr(i^0x25A500);
+		uint32_t ex=rand();
+		if (*p!=ex) {
+			printf("Error!= Addr %x expected %x got %x\n", i, ex, *p);
+		}
+		*p=0;
+	}
+#endif
+}
+
+#else
+#define MMAP_RAM_PTR(ent, addr) &ent->memAddr[addr&(MEMMAP_ES-1)]
+static void ramInit() {
+	printf("Using internal memory as Mac RAM\n");
+	macRam=malloc(TME_RAMSIZE);
+	macFb[0]=&macRam[TME_SCREENBUF];
+	macFb[1]=&macRam[TME_SCREENBUF_ALT];
+	printf("Clearing ram...\n");
+	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=rand();
+}
+#endif
+
+
 const inline static MemmapEnt *getMmmapEnt(const unsigned int address) {
 	if (address>=MEMMAP_MAX_ADDR) return &memmap[127];
 	return &memmap[address/MEMMAP_ES];
 }
 
-unsigned int  m68k_read_memory_8(unsigned int address) {
+unsigned int m68k_read_memory_8(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
 		uint8_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint8_t*)MMAP_RAM_PTR(mmEnt, address);
 		return *p;
 	} else {
 		return mmEnt->cb(address, 0, 0);
 	}
 }
 
-unsigned int  m68k_read_memory_16(unsigned int address) {
+unsigned int m68k_read_memory_16(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
+	if ((address&1)!=0) printf("%s: Unaligned access to %x!\n", __FUNCTION__, address);
 	if (mmEnt->memAddr) {
 		uint16_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint16_t*)MMAP_RAM_PTR(mmEnt, address);
 		return __bswap_16(*p);
 	} else {
 		unsigned int ret;
@@ -202,11 +362,13 @@ unsigned int  m68k_read_memory_16(unsigned int address) {
 	}
 }
 
-unsigned int  m68k_read_memory_32(unsigned int address) {
+#if 0
+unsigned int m68k_read_memory_32(unsigned int address) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
+	if ((address&3)!=0) printf("%s: Unaligned access to %x!\n", __FUNCTION__, address);
 	if (mmEnt->memAddr) {
 		uint32_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint32_t*)MMAP_RAM_PTR(mmEnt, address);
 		return __bswap_32(*p);
 	} else {
 		unsigned int ret;
@@ -217,12 +379,19 @@ unsigned int  m68k_read_memory_32(unsigned int address) {
 		return ret;
 	}
 }
+#else
+unsigned int m68k_read_memory_32(unsigned int address) {
+	uint16_t a=m68k_read_memory_16(address);
+	uint16_t b=m68k_read_memory_16(address+2);
+	return (a<<16)|b;
+}
+#endif
 
 void m68k_write_memory_8(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
 	if (mmEnt->memAddr) {
 		uint8_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint8_t*)MMAP_RAM_PTR(mmEnt, address);
 		*p=value;
 	} else {
 		mmEnt->cb(address, value, 1);
@@ -231,9 +400,10 @@ void m68k_write_memory_8(unsigned int address, unsigned int value) {
 
 void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
+	if ((address&1)!=0) printf("%s: Unaligned access to %x!\n", __FUNCTION__, address);
 	if (mmEnt->memAddr) {
 		uint16_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint16_t*)MMAP_RAM_PTR(mmEnt, address);
 		*p=__bswap_16(value);
 	} else {
 		mmEnt->cb(address, (value>>8)&0xff, 1);
@@ -241,12 +411,13 @@ void m68k_write_memory_16(unsigned int address, unsigned int value) {
 	}
 }
 
-
+#if 0
 void m68k_write_memory_32(unsigned int address, unsigned int value) {
 	const MemmapEnt *mmEnt=getMmmapEnt(address);
+	if ((address&3)!=0) printf("%s: Unaligned access to %x!\n", __FUNCTION__, address);
 	if (mmEnt->memAddr) {
 		uint32_t *p;
-		p=&mmEnt->memAddr[address&(MEMMAP_ES-1)];
+		p=(uint32_t*)MMAP_RAM_PTR(mmEnt, address);
 		*p=__bswap_32(value);
 	} else {
 		mmEnt->cb(address, (value>>24)&0xff, 1);
@@ -255,7 +426,12 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
 		mmEnt->cb(address+3, (value>>0)&0xff, 1);
 	}
 }
-
+#else
+void m68k_write_memory_32(unsigned int address, unsigned int value) {
+	m68k_write_memory_16(address, value>>16);
+	m68k_write_memory_16(address+2, value);
+}
+#endif
 
 //Should be called every second. 
 void printFps() {
@@ -272,13 +448,11 @@ void printFps() {
 	oldtv.tv_usec=tv.tv_usec;
 }
 
-void tmeStartEmu(void *ram, void *rom) {
+void tmeStartEmu(void *rom) {
 	int ca1=0, ca2=0;
 	int x, m=0, frame=0;
 	macRom=rom;
-	macRam=ram;
-	printf("Clearing ram...\n");
-	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=0;
+	ramInit();
 	rom_remap=1;
 	regenMemmap(1);
 	printf("Creating HD and registering it...\n");
@@ -312,7 +486,7 @@ void tmeStartEmu(void *ram, void *rom) {
 				m=0;
 			}
 		}
-		dispDraw(&macRam[video_remap?TME_SCREENBUF_ALT:TME_SCREENBUF]);
+		dispDraw(macFb[video_remap?1:0]);
 		frame++;
 		ca1^=1;
 		viaControlWrite(VIA_CA1, ca1);

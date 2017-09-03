@@ -1,4 +1,4 @@
 
 
-void tmeStartEmu(void *rom, void *ram);
+void tmeStartEmu(void *rom);
 void tmeMouseMovement(int dx, int dy, int btn);
