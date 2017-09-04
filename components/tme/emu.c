@@ -458,11 +458,11 @@ void tmeStartEmu(void *rom) {
 	printf("Creating HD and registering it...\n");
 	SCSIDevice *hd=hdCreate("hd.img");
 	ncrRegisterDevice(6, hd);
-	printf("Initializing m68k...\n");
 	viaClear(VIA_PORTA, 0x7F);
 	viaSet(VIA_PORTA, 0x80);
 	viaClear(VIA_PORTA, 0xFF);
 	viaSet(VIA_PORTB, (1<<3));
+	sccInit();
 	printf("Initializing m68k...\n");
 	m68k_init();
 	printf("Setting CPU type and resetting...");
@@ -475,6 +475,7 @@ void tmeStartEmu(void *rom) {
 		for (x=0; x<8000000/60; x+=10) {
 			m68k_execute(10);
 			viaStep(1); //should run at 783.36KHz
+			sccTick();
 			m++;
 			if (m>=1000) {
 				int r=mouseTick();

@@ -19,6 +19,8 @@ void rtcTick() {
 	}
 }
 
+extern void saveRtcMem(char *mem);
+
 int rtcCom(int en, int dat, int clk) {
 	int ret=0;
 	clk=clk?1:0;
@@ -35,7 +37,10 @@ int rtcCom(int en, int dat, int clk) {
 				}
 				ret=((rtc.cmd&(1<<(15-rtc.pos)))?1:0);
 			} else if (rtc.pos==15) {
-				if ((rtc.cmd&0x8000)==0) rtc.mem[(rtc.cmd&0x7C00)>>10]=rtc.cmd&0xff;
+				if ((rtc.cmd&0x8000)==0) {
+					rtc.mem[(rtc.cmd&0x7C00)>>10]=rtc.cmd&0xff;
+					saveRtcMem(rtc.mem);
+				}
 				printf("RTC/PRAM CMD %x\n", rtc.cmd);
 			}
 			rtc.pos++;
@@ -45,3 +50,6 @@ int rtcCom(int en, int dat, int clk) {
 	return ret;
 }
 
+void rtcInit(char *mem) {
+	memcpy(rtc.mem, mem, 32);
+}

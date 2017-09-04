@@ -21,7 +21,22 @@ static void *loadRom(char *file) {
 	return ret;
 }
 
+void saveRtcMem(char *data) {
+	FILE *f=fopen("pram.dat", "wb");
+	if (f!=NULL) {
+		fwrite(data, 32, 1, f);
+		fclose(f);
+	}
+}
+
 int main(int argc, char **argv) {
 	void *rom=loadRom("rom.bin");
+	FILE *f=fopen("pram.dat", "r");
+	if (f!=NULL) {
+		char data[32];
+		fread(data, 32, 1, f);
+		rtcInit(data);
+		fclose(f);
+	}
 	tmeStartEmu(rom);
 }
