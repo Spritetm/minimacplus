@@ -10,7 +10,7 @@
 #include "esp_heap_alloc_caps.h"
 
 #define ADNS_MOSI 19
-#define ADNS_MISO 21
+#define ADNS_MISO 34ULL
 #define ADNS_CLK 23
 #define ADNS_CS 22
 
@@ -32,7 +32,7 @@ static void adnsWrite(int adr, int val) {
 }
 
 static int adnsRead(int adr) {
-	int data=((adr&0x7F)<<8);
+	int data=((adr&0x7F)<<8)|0xff;
 	int out=0;
 	gpio_set_level(ADNS_CS, 0);
 	DELAY();
@@ -40,11 +40,12 @@ static int adnsRead(int adr) {
 		gpio_set_level(ADNS_MOSI, (data&mask)?1:0);
 		gpio_set_level(ADNS_CLK, 0);
 		DELAY();
-		gpio_set_level(ADNS_CLK, 1);
 		if (gpio_get_level(ADNS_MISO)) out|=mask;
+		gpio_set_level(ADNS_CLK, 1);
 		DELAY();
 	}
 	gpio_set_level(ADNS_CS, 1);
+	DELAY();
 	return out&0xff;
 }
 
@@ -59,9 +60,9 @@ int adns9500_init() {
 			.pull_down_en=GPIO_PULLDOWN_DISABLE, 
 			.intr_type=GPIO_PIN_INTR_DISABLE
 		},{
-			.pin_bit_mask=(1<<ADNS_MISO), 
+			.pin_bit_mask=(1ULL<<ADNS_MISO), 
 			.mode=GPIO_MODE_INPUT, 
-			.pull_up_en=GPIO_PULLUP_ENABLE, 
+//			.pull_up_en=GPIO_PULLUP_ENABLE, 
 //			.pull_down_en=GPIO_PULLDOWN_DISABLE, 
 			.intr_type=GPIO_PIN_INTR_DISABLE
 		}
@@ -100,7 +101,7 @@ void adns900_get_dxdybtn(int *x, int *y, int *btn) {
 	sy|=adnsRead(0x6)<<8;
 	ets_delay_us(100);
 	*btn=gpio_get_level(ADNS_MISO)?0:1;
-//	printf("Mouse: %d %d %d\n", sx, sy, *btn);
+	if (sx!=0 || sy!=0) printf("Mouse: %hd %hd %d\n", sx, sy, *btn);
 	*x=sx;
 	*y=sy;
 }

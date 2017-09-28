@@ -322,7 +322,12 @@ static void ramInit() {
 #define MMAP_RAM_PTR(ent, addr) &ent->memAddr[addr&(MEMMAP_ES-1)]
 static void ramInit() {
 	printf("Using internal memory as Mac RAM\n");
+#if CONFIG_SPIRAM_USE_MEMMAP
+	macRam=(void*)0x3F800000;
+#else
 	macRam=malloc(TME_RAMSIZE);
+#endif
+	assert(macRam);
 	macFb[0]=&macRam[TME_SCREENBUF];
 	macFb[1]=&macRam[TME_SCREENBUF_ALT];
 	printf("Clearing ram...\n");

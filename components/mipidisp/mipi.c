@@ -153,8 +153,8 @@ void mipiResync() {
 	spidev->user.usr_mosi=1;
 
 /* HACK for inverted clock */
-	spidev->user.usr_addr=1;
-	spidev->user1.usr_addr_bitlen=0; //1 addr bit
+//	spidev->user.usr_addr=1;
+//	spidev->user1.usr_addr_bitlen=0; //1 addr bit
 /* End hack */
 
 	spidev->cmd.usr=1;
@@ -183,6 +183,7 @@ void mipiInit() {
 	assert(spicommon_periph_claim(HOST));
 	ret=spicommon_bus_initialize_io(HOST, &buscfg,  DMACH, SPICOMMON_BUSFLAG_MASTER, &io_native);
 	assert(ret==ESP_OK);
+	assert(spicommon_dma_chan_claim(DMACH));
 	spidev=spicommon_hw_for_host(HOST);
 	
 	//Set up idle dma desc

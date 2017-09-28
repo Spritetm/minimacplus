@@ -1,11 +1,3 @@
-/* SPI Master example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +14,9 @@
 #include "mipi.h"
 #include "mipi_dsi.h"
 
+//We need speed here!
+#pragma GCC optimize ("O2")
+
 typedef struct {
 	uint8_t type;
 	uint8_t addr;
@@ -29,8 +24,8 @@ typedef struct {
 	uint8_t data[16];
 } DispPacket;
 
-//Copied from the X163QLN01 appliation note.
-const DispPacket initPackets[]={
+//Copied from the X163QLN01 application note.
+static const DispPacket initPackets[]={
 	{0x39, 0xF0, 5, {0x55, 0xAA, 0x52, 0x08, 0x00}},
 	{0x39, 0xBD, 5, {0x01, 0x90, 0x14, 0x14, 0x00}},
 	{0x39, 0xBE, 5, {0x01, 0x90, 0x14, 0x14, 0x01}},
@@ -71,16 +66,14 @@ const DispPacket initPackets[]={
 
 #define SCALE_FACT 51 //Floating-point number, actually x/32. Divide mac reso by this to get lcd reso.
 
-
 static uint8_t mask[512];
 
 static void calcLut() {
 	for (int i=0; i<512; i++) mask[i]=(1<<(7-(i&7)));
 }
 
-
 //Returns 0-1024
-int findMacVal(uint8_t *data, int x, int y) {
+static int IRAM_ATTR findMacVal(uint8_t *data, int x, int y) {
 	int a,b,c,d;
 	int v=0;
 	int rx=x/32;
@@ -122,7 +115,7 @@ int findMacVal(uint8_t *data, int x, int y) {
 //
 // Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
 
-int findPixelVal(uint8_t *data, int x, int y) {
+static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
 	int sx=(x*SCALE_FACT); //32th is 512/320 -> scale 512 mac screen to 320 width
 	int sy=(y*SCALE_FACT);
 	//sx and sy are now 27.5 fixed point values for the 'real' mac-like components
@@ -140,7 +133,6 @@ int findPixelVal(uint8_t *data, int x, int y) {
 	}
 	return ((r>>5)<<0)|((g>>4)<<5)|((b>>5)<<11);
 }
-
 
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
@@ -168,7 +160,7 @@ static void initLcd() {
 	printf("Display inited.\n");
 }
 
-void displayTask(void *arg) {
+static void IRAM_ATTR displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
 	calcLut();

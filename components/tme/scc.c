@@ -166,7 +166,7 @@ void sccWrite(unsigned int addr, unsigned int val) {
 	} else if (reg==15) {
 		scc.chan[chan].wr15=val;
 	}
-	printf("SCC: write to addr %x chan %d reg %d val %x\n", addr, chan, reg, val);
+//	printf("SCC: write to addr %x chan %d reg %d val %x\n", addr, chan, reg, val);
 }
 
 
@@ -236,7 +236,7 @@ unsigned int sccRead(unsigned int addr) {
 	} else if (reg==15) {
 		val=scc.chan[chan].wr15;
 	}
-	printf("SCC: read from chan %d reg %d val %x\n", chan, reg, val);
+//	printf("SCC: read from chan %d reg %d val %x\n", chan, reg, val);
 	return val;
 }
 
