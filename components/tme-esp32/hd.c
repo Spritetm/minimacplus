@@ -25,16 +25,27 @@ const uint8_t inq_resp[95]={
 	'1','.','0',' ',' ',' ',' ',' ', //prod rev lvl
 };
 
+static void writeSector(HdPriv *hd, unsigned int lba, uint8_t *data) {
+	uint8_t *secdat=malloc(4096);
+	assert(secdat);
+	unsigned int lbaStart=lba&(~7);
+	unsigned int lbaOff=lba&7;
+	assert(esp_partition_read(hd->part, lbaStart*512, secdat, 4096)==ESP_OK);
+	assert(esp_partition_erase_range(hd->part, lbaStart*512, 4096)==ESP_OK);
+	for (int i=0; i<512; i++) secdat[lbaOff*512+i]=data[i];
+	assert(esp_partition_write(hd->part, lbaStart*512, secdat, 4096)==ESP_OK);
+	free(secdat);
+}
+
 static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len, unsigned int lba, void *arg) {
 	int ret=0;
 	static uint8_t *bb=NULL;
 	HdPriv *hd=(HdPriv*)arg;
 	if (cmd==0x8 || cmd==0x28) { //read
 		printf("HD: Read %d bytes from LBA %d.\n", len*512, lba);
-#if 0	//spi ram read/write does not play well with flash reads
-
 		assert(esp_partition_read(hd->part, lba*512, data->data, len*512)==ESP_OK);
-#else
+#if 0 
+		//alternate mmap solution
 		uint8_t *buf;
 		spi_flash_mmap_handle_t handle;
 		esp_partition_mmap(hd->part, lba*512, len*512, SPI_FLASH_MMAP_DATA, &buf, &handle);
@@ -43,6 +54,15 @@ static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len,
 #endif
 //		hexdump(data->data, len*512);
 		ret=len*512;
+	} else if (cmd==0x0A || cmd==0x2A) { //write
+		uint8_t *dp=data->data;
+		while(len) {
+			writeSector(hd, lba, dp);
+			lba++;
+			dp+=512;
+			len--;
+		}
+		ret=0;
 	} else if (cmd==0x12) { //inquiry
 		printf("HD: Inquery\n");
 		memcpy(data->data, inq_resp, sizeof(inq_resp));

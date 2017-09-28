@@ -107,7 +107,7 @@ static void parseScsiCmd(int isRead) {
 		printf("SCSI: UNSUPPORTED CMD %x\n", cmd);
 		return;
 	}
-//	printf("SCSI: CMD %x LBA %x LEN %x CTRL %x\n", cmd, lba, len, ctrl);
+	printf("SCSI: CMD %x LBA %x LEN %x CTRL %x %s\n", cmd, lba, len, ctrl, isRead?"*READ*":"*WRITE*");
 	if (ncr.dev[ncr.selected]) {
 		ncr.datalen=ncr.dev[ncr.selected]->scsiCmd(&ncr.data, cmd, len, lba, ncr.dev[ncr.selected]->arg);
 	}
@@ -178,9 +178,13 @@ unsigned int ncrRead(unsigned int addr, unsigned int dack) {
 
 void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
+
 	if (addr==0) {
 		if (ncr.mode&MODE_DMA && dack) {
-			printf("UNSUPPORTED: dma write\n");
+			ncr.buf[ncr.bufpos]=val;
+			if ((ncr.tcr&TCR_IO)==0) {
+				if (ncr.bufpos!=ncr.bufmax) ncr.bufpos++;
+			}
 		}
 		ncr.dout=val;
 		ncr.din=val;
@@ -234,10 +238,10 @@ void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 			int newtcr=(val&7);
 			if (oldtcr==0 && ncr.bufpos) {
 				//End of data out phase
-				parseScsiCmd(1);
+				parseScsiCmd(0);
 			} else if ((oldtcr==TCR_CD) && (newtcr==TCR_IO)) {
 				//Start of data in phase
-				parseScsiCmd(0);
+				parseScsiCmd(1);
 			}
 			if ((ncr.tcr&0x7)==TCR_IO) {
 				printf("Data Out finished: Host read %d/%d bytes.\n", ncr.bufpos, ncr.datalen);
