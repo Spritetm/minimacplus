@@ -31,12 +31,12 @@ static int hdScsiCmd(SCSITransferData *data, unsigned int cmd, unsigned int len,
 	if (cmd==0x8 || cmd==0x28) { //read
 		fseek(hd->f, lba*512, SEEK_SET);
 		fread(data->data, 512, len, hd->f);
-		printf("HD: Read %d bytes.\n", len*512);
+//		printf("HD: Read %d bytes.\n", len*512);
 		ret=len*512;
 	} else if (cmd==0xA || cmd==0x2A) { //write
 		fseek(hd->f, lba*512, SEEK_SET);
 		fwrite(data->data, 512, len, hd->f);
-		printf("HD: Write %d bytes\n", len*512);
+//		printf("HD: Write %d bytes\n", len*512);
 		ret=0;
 	} else if (cmd==0x12) { //inquiry
 		printf("HD: Inquery\n");

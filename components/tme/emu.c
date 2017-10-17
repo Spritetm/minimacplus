@@ -17,12 +17,13 @@
 #include "rtc.h"
 #include "ncr.h"
 #include "hd.h"
+#include "snd.h"
 #include "mouse.h"
 #include <stdbool.h>
 #include "esp_heap_caps.h"
 #include <byteswap.h>
 #include "esp_spiram.h"
-
+#include "network/localtalk.h"
 
 
 unsigned char *macRom;
@@ -36,7 +37,7 @@ unsigned char *macRam;
 
 #define MEMADDR_DUMMY_CACHE (void*)1
 
-int rom_remap, video_remap=0, audio_remap=0;
+int rom_remap, video_remap=0, audio_remap=0, audio_volume=0, audio_en=0;
 
 void m68k_instruction() {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
@@ -193,7 +194,7 @@ static void regenMemmap(int remapRom) {
 	}
 }
 
-uint8_t *macFb[2];
+uint8_t *macFb[2], *macSnd[2];
 
 
 #if (USE_EXTERNAL_RAM)
@@ -330,6 +331,8 @@ static void ramInit() {
 	assert(macRam);
 	macFb[0]=&macRam[TME_SCREENBUF];
 	macFb[1]=&macRam[TME_SCREENBUF_ALT];
+	macSnd[0]=&macRam[TME_SNDBUF];
+	macSnd[1]=&macRam[TME_SNDBUF_ALT];
 	printf("Clearing ram...\n");
 	for (int x=0; x<TME_RAMSIZE; x++) macRam[x]=rand();
 }
@@ -446,7 +449,7 @@ void printFps() {
 	if (oldtv.tv_sec!=0) {
 		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
 		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
-		printf("Speed: %d%%\n", (int)(100000/msec));
+//		printf("Speed: %d%%\n", (int)(100000/msec));
 //		printf("Mem free: %dKiB 8-bit, %dKiB 32-bit\n", xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT)/1024, xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT)/1024);
 	}
 	oldtv.tv_sec=tv.tv_sec;
@@ -475,6 +478,8 @@ void tmeStartEmu(void *rom) {
 	m68k_pulse_reset();
 	printf("Display init...\n");
 	dispInit();
+	sndInit();
+	localtalkInit();
 	printf("Done! Running.\n");
 	while(1) {
 		for (x=0; x<8000000/60; x+=10) {
@@ -491,8 +496,12 @@ void tmeStartEmu(void *rom) {
 				sccSetDcd(SCC_CHANB, r&MOUSE_QYA);
 				m=0;
 			}
+			//Sound handler keeps track of real time, if its buffer is empty we should be done with the video frame.
+			if (sndDone()) break;
 		}
 		dispDraw(macFb[video_remap?1:0]);
+		sndPush(macSnd[audio_remap?1:0], audio_en?audio_volume:0);
+		localtalkTick();
 		frame++;
 		ca1^=1;
 		viaControlWrite(VIA_CA1, ca1);
@@ -522,14 +531,16 @@ void viaCbPortAWrite(unsigned int val) {
 	video_remap=(val&(1<<6))?1:0;
 	rom_remap=(val&(1<<4))?1:0;
 	regenMemmap(rom_remap);
-	audio_remap=(val&(1<<3))?1:0;
+	audio_remap=(val&(1<<3))?0:1;
 	if (oldRomRemap!=rom_remap) printf("ROM REMAP %d\n", rom_remap);
 	iwmSetHeadSel(val&(1<<5));
+	audio_volume=(val&7);
 }
 
 void viaCbPortBWrite(unsigned int val) {
 	int b;
 	b=rtcCom(val&4, val&1, val&2);
 	if (b) viaSet(VIA_PORTB, 1); else viaClear(VIA_PORTB, 1);
+	audio_en=!(val&(1<<7));
 }
 

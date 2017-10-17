@@ -17,7 +17,7 @@ void sdlDie() {
 
 
 void dispInit() {
-	if (SDL_Init( SDL_INIT_VIDEO ) < 0 ) sdlDie();
+	if (SDL_Init( SDL_INIT_VIDEO|SDL_INIT_AUDIO ) < 0 ) sdlDie();
 	win=SDL_CreateWindow( "TME", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
 	if (win==0) sdlDie();
 	surf=SDL_GetWindowSurface(win);

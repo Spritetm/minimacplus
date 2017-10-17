@@ -8,7 +8,7 @@ COMPONENT_SRCDIRS := . musashi
 MUSASHI_GEN_SRC := musashi/m68kops_pre.c musashi/m68kopac.c musashi/m68kopdm.c musashi/m68kopnz.c
 MUSASHI_GEN_OBJ := $(MUSASHI_GEN_SRC:%.c=%.o)
 COMPONENT_OBJS := musashi/m68kops_pre.o musashi/m68kopac.o musashi/m68kopdm-iram.o musashi/m68kopnz.o musashi/m68kcpu.o emu.o \
-			iwm.o via.o rtc.o ncr.o scc.o mouse.o localtalk.o
+			iwm.o via.o rtc.o ncr.o scc.o mouse.o network/localtalk.o network/ddp.o network/ethertalk.o
 
 #nothing in iram: 16%
 #ac nz in iram: 19%

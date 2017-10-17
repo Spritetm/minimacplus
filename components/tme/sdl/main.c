@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "tmeconfig.h"
-
+#include "snd.h"
 
 static void *loadRom(char *file) {
 	int i;

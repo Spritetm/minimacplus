@@ -95,19 +95,19 @@ static void parseScsiCmd(int isRead) {
 		len=buf[4];
 		if (len==0) len=256;
 		ctrl=buf[5];
-		for (int x=0; x<6; x++) printf("%02X ", buf[x]);
-		printf("\n");
+//		for (int x=0; x<6; x++) printf("%02X ", buf[x]);
+//		printf("\n");
 	} else if (group==1 || group==2) { //10-byte command
 		lba=buf[5]|(buf[4]<<8)|(buf[3]<<16)|(buf[2]<<24);
 		len=buf[8]|(buf[7]<<8);
 		ctrl=buf[9];
-		for (int x=0; x<10; x++) printf("%02X ", buf[x]);
-		printf("\n");
+//		for (int x=0; x<10; x++) printf("%02X ", buf[x]);
+//		printf("\n");
 	} else {
 		printf("SCSI: UNSUPPORTED CMD %x\n", cmd);
 		return;
 	}
-	printf("SCSI: CMD %x LBA %x LEN %x CTRL %x %s\n", cmd, lba, len, ctrl, isRead?"*READ*":"*WRITE*");
+//	printf("SCSI: CMD %x LBA %x LEN %x CTRL %x %s\n", cmd, lba, len, ctrl, isRead?"*READ*":"*WRITE*");
 	if (ncr.dev[ncr.selected]) {
 		ncr.datalen=ncr.dev[ncr.selected]->scsiCmd(&ncr.data, cmd, len, lba, ncr.dev[ncr.selected]->arg);
 	}
@@ -160,7 +160,7 @@ unsigned int ncrRead(unsigned int addr, unsigned int dack) {
 		if (ncr.mode&MODE_DMA) {
 			ret|=BSR_DMARQ;
 			if (ncr.bufpos>=ncr.datalen) {
-				printf("End of DMA reached: bufpos %d datalen %d\n", ncr.bufpos, ncr.datalen);
+//				printf("End of DMA reached: bufpos %d datalen %d\n", ncr.bufpos, ncr.datalen);
 				ret|=BSR_EODMA;
 			}
 		}
@@ -198,7 +198,7 @@ void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 			if (ncr.dout==0x90) ncr.selected=4;
 			if (ncr.dout==0xA0) ncr.selected=5;
 			if (ncr.dout==0xC0) ncr.selected=6;
-			printf("Selected dev: %d (val %x)\n", ncr.selected, ncr.dout);
+//			printf("Selected dev: %d (val %x)\n", ncr.selected, ncr.dout);
 		}
 		if (((val&INI_BSY)==0) && ncr.state==ST_SELECT) {
 			ncr.state=ST_SELDONE;
@@ -220,7 +220,7 @@ void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 			//Ack line goes low..
 			if (ncr.tcr&TCR_IO) {
 				if (ncr.bufpos!=ncr.bufmax) ncr.din=ncr.buf[ncr.bufpos++];
-				printf("Send byte non-dma\n");
+//				printf("Send byte non-dma\n");
 			}
 		}
 		if (val&INI_RST) {
@@ -244,21 +244,21 @@ void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 				parseScsiCmd(1);
 			}
 			if ((ncr.tcr&0x7)==TCR_IO) {
-				printf("Data Out finished: Host read %d/%d bytes.\n", ncr.bufpos, ncr.datalen);
+//				printf("Data Out finished: Host read %d/%d bytes.\n", ncr.bufpos, ncr.datalen);
 			}
 			ncr.bufpos=0;
 			int type=val&(TCR_MSG|TCR_CD);
 			if (type==0) {
-				printf("Sel data buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
+//				printf("Sel data buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
 				ncr.buf=ncr.data.data;
 				ncr.bufmax=sizeof(ncr.data.data);
 			} else if (type==TCR_CD) {
-				printf("Sel cmd/status buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
+//				printf("Sel cmd/status buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
 				ncr.buf=ncr.data.cmd;
 				ncr.bufmax=sizeof(ncr.data.cmd);
 				ncr.datalen=1;
 			} else if (type==(TCR_CD|TCR_MSG)) {
-				printf("Sel msg buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
+//				printf("Sel msg buf %s.\n", (newtcr&TCR_IO)?"IN":"OUT");
 				ncr.buf=ncr.data.msg;
 				ncr.bufmax=sizeof(ncr.data.msg);
 				ncr.datalen=1;
