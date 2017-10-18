@@ -102,14 +102,14 @@ static int rxBufTick(int chan) {
 #define SCC_WR15_DCD    (1<<3)
 #define SCC_WR15_ZCOUNT (1<<1)
 
-//WR3, when read, gives the Interrupt Pending status.
+//RR3, when read, gives the Interrupt Pending status.
 //This is reflected in scc.intpending.
-#define SCC_WR3_CHB_EXT (1<<0)
-#define SCC_WR3_CHB_TX  (1<<1)
-#define SCC_WR3_CHB_RX  (1<<2)
-#define SCC_WR3_CHA_EXT (1<<3)
-#define SCC_WR3_CHA_TX  (1<<4)
-#define SCC_WR3_CHA_RX  (1<<5)
+#define SCC_RR3_CHB_EXT (1<<0)
+#define SCC_RR3_CHB_TX  (1<<1)
+#define SCC_RR3_CHB_RX  (1<<2)
+#define SCC_RR3_CHA_EXT (1<<3)
+#define SCC_RR3_CHA_TX  (1<<4)
+#define SCC_RR3_CHA_RX  (1<<5)
 
 
 static void raiseInt(int chan) {
@@ -125,12 +125,12 @@ void sccSetDcd(int chan, int val) {
 	if (scc.chan[chan].dcd!=val) {
 		if (chan==SCC_CHANA) {
 			if (scc.chan[SCC_CHANA].wr15&SCC_WR15_DCD) {
-				scc.intpending|=SCC_WR3_CHA_EXT;
+				scc.intpending|=SCC_RR3_CHA_EXT;
 				 raiseInt(SCC_CHANA);
 			}
 		} else {
 			if (scc.chan[SCC_CHANB].wr15&SCC_WR15_DCD) {
-				scc.intpending|=SCC_WR3_CHB_EXT;
+				scc.intpending|=SCC_RR3_CHB_EXT;
 				raiseInt(SCC_CHANB);
 			}
 		}
@@ -185,13 +185,13 @@ static void triggerRx(int chan) {
 		printf("WR15: 0x%X WR1: %X\n", scc.chan[chan].wr15, scc.chan[chan].wr1);
 		//Sync int
 		if (scc.chan[chan].wr15&SCC_WR15_SYNC) {
-			scc.intpending|=(chan?SCC_WR3_CHA_EXT:SCC_WR3_CHB_EXT);
+			scc.intpending|=(chan?SCC_RR3_CHA_EXT:SCC_RR3_CHB_EXT);
 			raiseInt(chan);
 		}
 		//RxD int
 		int rxintena=scc.chan[chan].wr1&0x18;
 		if (rxintena==0x10 || rxintena==0x08) {
-			scc.intpending|=(chan?SCC_WR3_CHA_RX:SCC_WR3_CHB_RX);
+			scc.intpending|=(chan?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
 			raiseInt(chan);
 		}
 		scc.chan[chan].hunting=0;
@@ -267,12 +267,13 @@ unsigned int sccRead(unsigned int addr) {
 		scc.regptr=0;
 	}
 	if (reg==0) {
-		val=(1<<2); //tx buffer always empty
 		if (rxHasByte(chan)) val|=(1<<0);
-		if (scc.chan[chan].txTimer==0) val|=(1<<6);
+		//Bit 1 is zero count - never set
+		val=(1<<2); //tx buffer always empty
 		if (scc.chan[chan].dcd) val|=(1<<3);
-		if (scc.chan[chan].cts) val|=(1<<5);
 		if (scc.chan[chan].hunting) val|=(1<<4);
+		if (scc.chan[chan].cts) val|=(1<<5);
+		if (scc.chan[chan].txTimer==0) val|=(1<<6);
 		if (rxBytesLeft(chan)<=2) val|=(1<<7); //abort
 	} else if (reg==1) {
 		//Actually, these come out of the same fifo as the data, so this status should be for the fifo
@@ -283,18 +284,18 @@ unsigned int sccRead(unsigned int addr) {
 	} else if (reg==2 && chan==SCC_CHANB) {
 		//We assume this also does an intack.
 		int rsn=0;
-		if (scc.intpending & SCC_WR3_CHB_EXT) {
+		if (scc.intpending & SCC_RR3_CHB_EXT) {
 			rsn=1;
-			scc.intpending&=~SCC_WR3_CHB_EXT;
-		} else if (scc.intpending & SCC_WR3_CHA_EXT) {
+			scc.intpending&=~SCC_RR3_CHB_EXT;
+		} else if (scc.intpending & SCC_RR3_CHA_EXT) {
 			rsn=5;
-			scc.intpending&=~SCC_WR3_CHA_EXT;
-		} else if (scc.intpending&SCC_WR3_CHA_RX) {
+			scc.intpending&=~SCC_RR3_CHA_EXT;
+		} else if (scc.intpending&SCC_RR3_CHA_RX) {
 			rsn=6;
-			scc.intpending&=~SCC_WR3_CHA_RX;
-		} else if (scc.intpending&SCC_WR3_CHB_RX) {
+			scc.intpending&=~SCC_RR3_CHA_RX;
+		} else if (scc.intpending&SCC_RR3_CHB_RX) {
 			rsn=2;
-			scc.intpending&=~SCC_WR3_CHA_RX;
+			scc.intpending&=~SCC_RR3_CHA_RX;
 		}
 
 		val=scc.wr2;
@@ -317,13 +318,13 @@ unsigned int sccRead(unsigned int addr) {
 			if (left!=0) {
 				int rxintena=scc.chan[chan].wr1&0x18;
 				if (rxintena==0x10) {
-					scc.intpending|=(chan?SCC_WR3_CHA_RX:SCC_WR3_CHB_RX);
+					scc.intpending|=(chan?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
 					raiseInt(chan);
 				}
 			}
 			if (left==1) scc.chan[chan].hunting=1;
 			if (left==1 && scc.chan[chan].wr15&SCC_WR15_BREAK) {
-				scc.intpending|=(chan?SCC_WR3_CHA_EXT:SCC_WR3_CHB_EXT);
+				scc.intpending|=(chan?SCC_RR3_CHA_EXT:SCC_RR3_CHB_EXT);
 				raiseInt(chan);
 			}
 		} else {
