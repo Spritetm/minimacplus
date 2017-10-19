@@ -36,6 +36,9 @@ ddp type 5
 data 1
 */
 
+llap_packet_t *bufferedPacket;
+int bufferedPacketLen;
+
 
 void localtalkSend(uint8_t *data, int len) {
 	llap_packet_t *p=(llap_packet_t*)data;
@@ -54,6 +57,12 @@ void localtalkSend(uint8_t *data, int len) {
 			r->type=LLAP_TYPE_CTS;
 			sccRecv(1, r, sizeof(llap_packet_t), 3);
 		}
+	} else if (p->type==LLAP_TYPE_CTS) {
+		printf("LocalTalk: CTS %hhu->%hhu\n", p->srcid, p->destid);
+		if (bufferedPacketLen>0 && p->destid==bufferedPacket->srcid) {
+			sccRecv(1, bufferedPacket, bufferedPacketLen, 3);
+		}
+		bufferedPacketLen=0;
 	} else if (p->type==LLAP_TYPE_DDP_SHORT) {
 		printf("Localtalk: DDP short %hhu->%hhu\n", p->srcid, p->destid);
 		ddp_print(p->data, len-sizeof(llap_packet_t), 0);
@@ -74,24 +83,23 @@ void localtalk_send_ddp(uint8_t *data, int len) {
 	rts.destid=ddp_get_dest_node(data);
 	rts.srcid=ddp_get_src_node(data);
 	rts.type=LLAP_TYPE_RTS;
-	sccRecv(1, &rts, 3, 3);
+	sccRecv(1, &rts, 3, 60);
 
 	//We assume this is a long ddp packet.
-#if 0
-	llap_packet_t *p=alloca(len+sizeof(llap_packet_t));
+#if 1
+	llap_packet_t *p=bufferedPacket;
 	p->destid=ddp_get_dest_node(data);
 	p->srcid=ddp_get_src_node(data);
 	p->type=LLAP_TYPE_DDP_SHORT;
-	int plen=ddp_long_to_short(data, p->data, len);
-	sccRecv(1, p, plen+sizeof(llap_packet_t), 2);
+	bufferedPacketLen=ddp_long_to_short(data, p->data, len);
 #else
 	printf("Localtalk: Sending ddp of len %d for a total of %d\n", len, len+sizeof(llap_packet_t));
-	llap_packet_t *p=alloca(len+sizeof(llap_packet_t));
+	llap_packet_t *p=bufferedPacket;
 	p->destid=ddp_get_dest_node(data);
 	p->srcid=ddp_get_src_node(data);
 	p->type=LLAP_TYPE_DDP_LONG;
 	memcpy(p->data, data, len);
-	sccRecv(1, p, len+sizeof(llap_packet_t), 2);
+	bufferedPacketLen=len+sizeof(llap_packet_t);
 #endif
 }
 
@@ -106,4 +114,6 @@ void localtalkTick() {
 
 void localtalkInit() {
 	ethertalkInit();
+	bufferedPacketLen=0;
+	bufferedPacket=malloc(8192);
 }
