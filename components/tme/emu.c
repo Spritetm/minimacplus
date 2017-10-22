@@ -319,10 +319,10 @@ static void ramInit() {
 #endif
 }
 
-#else
+#else //!USE_EXTERNAL_RAM
 #define MMAP_RAM_PTR(ent, addr) &ent->memAddr[addr&(MEMMAP_ES-1)]
 static void ramInit() {
-	printf("Using internal memory as Mac RAM\n");
+	printf("Using internal (or hw cached) memory as Mac RAM\n");
 #if CONFIG_SPIRAM_USE_MEMMAP
 	macRam=(void*)0x3F800000;
 #else
@@ -477,8 +477,8 @@ void tmeStartEmu(void *rom) {
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
 	m68k_pulse_reset();
 	printf("Display init...\n");
-	dispInit();
 	sndInit();
+	dispInit();
 	localtalkInit();
 	printf("Done! Running.\n");
 	while(1) {
@@ -497,7 +497,7 @@ void tmeStartEmu(void *rom) {
 				m=0;
 			}
 			//Sound handler keeps track of real time, if its buffer is empty we should be done with the video frame.
-			if (sndDone()) break;
+			//if (sndDone()) break;
 		}
 		dispDraw(macFb[video_remap?1:0]);
 		sndPush(macSnd[audio_remap?1:0], audio_en?audio_volume:0);

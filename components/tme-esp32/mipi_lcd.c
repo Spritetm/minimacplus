@@ -115,6 +115,8 @@ static int IRAM_ATTR findMacVal(uint8_t *data, int x, int y) {
 //
 // Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
 
+#if 1
+
 static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
 	int sx=(x*SCALE_FACT); //32th is 512/320 -> scale 512 mac screen to 320 width
 	int sy=(y*SCALE_FACT);
@@ -134,6 +136,15 @@ static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
 	return ((r>>5)<<0)|((g>>4)<<5)|((b>>5)<<11);
 }
 
+#else
+//Stupid 1-to-1 routine
+static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
+	return (data[y*32+(x>>3)]&(1<<(x&7)))?0:0xffff;
+}
+
+#endif
+
+
 volatile static uint8_t *currFbPtr=NULL;
 SemaphoreHandle_t dispSem = NULL;
 
@@ -143,19 +154,25 @@ static void initLcd() {
 	mipiInit();
 	vTaskDelay(20/portTICK_RATE_MS); //give screen a sec
 	for (int j=0; j<2; j++) { //Init multiple times; for mysterious reasons it sometimes doesn't catch first time.
-	for (int i=0; initPackets[i].type!=0; i++) {
-		mipiResync();
-		if (initPackets[i].type==0x39 || initPackets[i].type==0x29) {
-			uint8_t data[17];
-			data[0]=initPackets[i].addr;
-			memcpy(data+1, initPackets[i].data, 16);
-			mipiDsiSendLong(initPackets[i].type, data, initPackets[i].len+1);
-		} else {
-			uint8_t data[2]={initPackets[i].addr, initPackets[i].data[0]};
-			mipiDsiSendShort(initPackets[i].type, data, initPackets[i].len+1);
-			if (initPackets[i].type==5) vTaskDelay(300/portTICK_RATE_MS);
+		for (int i=0; initPackets[i].type!=0; i++) {
+			mipiResync();
+			if (initPackets[i].type==0x39 || initPackets[i].type==0x29) {
+				uint8_t data[17];
+				data[0]=initPackets[i].addr;
+				memcpy(data+1, initPackets[i].data, 16);
+				mipiDsiSendLong(initPackets[i].type, data, initPackets[i].len+1);
+			} else {
+				uint8_t data[2]={initPackets[i].addr, initPackets[i].data[0]};
+				mipiDsiSendShort(initPackets[i].type, data, initPackets[i].len+1);
+				if (initPackets[i].type==5) vTaskDelay(300/portTICK_RATE_MS);
+			}
 		}
+
 	}
+	uint8_t clrData[33]={0x2c, 0, 0, 0};
+	for (int i=0; i<(320*340*2)/32; i++) {
+		mipiDsiSendLong(0x39, clrData, 32);
+		clrData[0]=0x3C;
 	}
 	printf("Display inited.\n");
 }
@@ -164,12 +181,21 @@ static void IRAM_ATTR displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
 	calcLut();
+	uint8_t cmd[5];
 
 	int firstrun=1;
 	while(1) {
 		int l=0;
 		mipiResync();
 		xSemaphoreTake(dispSem, portMAX_DELAY);
+#if 0
+		cmd[0]=0x2a; //set_col_addr
+		cmd[1]=0; //scolh
+		cmd[2]=0; //scoll
+		cmd[3]=(320>>8); //ecolh
+		cmd[4]=(320&0xff); //ecoll
+		mipiDsiSendLong(0x39, cmd, 4);
+#endif
 		uint8_t *myData=(uint8_t*)currFbPtr;
 		img[0]=0x2c;
 		uint8_t *p=&img[1];
@@ -206,7 +232,6 @@ void dispDraw(uint8_t *mem) {
 
 void dispInit() {
 	initLcd();
-	printf("spi_lcd_init()\n");
 	int ret=adns9500_init();
 	if (!ret) printf("No mouse found!\n");
 

@@ -86,7 +86,7 @@ void localtalk_send_ddp(uint8_t *data, int len) {
 	sccRecv(1, &rts, 3, 60);
 
 	//We assume this is a long ddp packet.
-#if 1
+#if 0
 	llap_packet_t *p=bufferedPacket;
 	p->destid=ddp_get_dest_node(data);
 	p->srcid=ddp_get_src_node(data);

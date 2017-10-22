@@ -8,15 +8,19 @@
 static uint8_t buf[1024];
 static int wp=256, rp=0;
 
+static int soundEna=0;
+
 static int bufLen() {
 	return (wp-rp)&1023;
 }
 
 int sndDone() {
+	if (!soundEna) return 1;
 	return (bufLen()<512);
 }
 
 int sndPush(uint8_t *data, int volume) {
+	if (!soundEna) return 0;
 	while(!sndDone()) usleep(1000);
 	for (int i=0; i<370; i++) {
 		int s=*data;
@@ -25,6 +29,7 @@ int sndPush(uint8_t *data, int volume) {
 		if (wp==1024) wp=0;
 		data+=2;
 	}
+	return 1;
 }
 
 static void sndCb(void* userdata, Uint8* stream, int len) {
@@ -48,8 +53,10 @@ void sndInit() {
 	dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
 	if (dev == 0) {
 		SDL_Log("Failed to open audio: %s", SDL_GetError());
+	} else {
+		SDL_PauseAudioDevice(dev, 0);
+		soundEna=1;
 	}
-	SDL_PauseAudioDevice(dev, 0);
 }
 
 

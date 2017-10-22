@@ -460,13 +460,13 @@ unsigned int sccRead(unsigned int addr) {
 		//rx buffer
 
 		if (rxHasByte(chan)) {
-			int left;
+			int left=0;
 			val=rxByte(chan, &left);
 			printf("SCC READ DATA val %x, %d bytes left\n", val, left);
 			if (left==1) { //because status goes with byte *to be read*, the last byte here is the EOM byte
 				printf("Setting EOM\n");
 				scc.chan[chan].rxEom=1;
-				scc.chan[chan].rxAbrtTimer=20;
+				scc.chan[chan].rxAbrtTimer=40;
 			} else {
 				scc.chan[chan].rxEom=0;
 			}

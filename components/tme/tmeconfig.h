@@ -39,6 +39,9 @@
 #define TME_RAMSIZE (128*1024)
 #define TME_SCREENBUF 0x1A700
 #define TME_SCREENBUF_ALT 0x12700
+#define TME_SNDBUF 0x1FD00
+#define TME_SNDBUF_ALT 0x1A100
+
 #endif
 
 
