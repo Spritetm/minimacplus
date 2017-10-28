@@ -86,12 +86,13 @@ void localtalk_send_ddp(uint8_t *data, int len) {
 	sccRecv(1, &rts, 3, 60);
 
 	//We assume this is a long ddp packet.
-#if 0
+#if 1
 	llap_packet_t *p=bufferedPacket;
 	p->destid=ddp_get_dest_node(data);
 	p->srcid=ddp_get_src_node(data);
 	p->type=LLAP_TYPE_DDP_SHORT;
 	bufferedPacketLen=ddp_long_to_short(data, p->data, len);
+	sccRecv(1, bufferedPacket, bufferedPacketLen, 10);
 #else
 	printf("Localtalk: Sending ddp of len %d for a total of %d\n", len, len+sizeof(llap_packet_t));
 	llap_packet_t *p=bufferedPacket;
@@ -100,6 +101,7 @@ void localtalk_send_ddp(uint8_t *data, int len) {
 	p->type=LLAP_TYPE_DDP_LONG;
 	memcpy(p->data, data, len);
 	bufferedPacketLen=len+sizeof(llap_packet_t);
+	sccRecv(1, bufferedPacket, bufferedPacketLen, 10);
 #endif
 }
 

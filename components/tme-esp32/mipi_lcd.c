@@ -139,7 +139,7 @@ static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
 #else
 //Stupid 1-to-1 routine
 static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
-	return (data[y*32+(x>>3)]&(1<<(x&7)))?0:0xffff;
+	return (data[y*64+(x>>3)]&(1<<((7-x)&7)))?0:0xffff;
 }
 
 #endif
@@ -191,7 +191,14 @@ static void IRAM_ATTR displayTask(void *arg) {
 #if 0
 		cmd[0]=0x2a; //set_col_addr
 		cmd[1]=0; //scolh
-		cmd[2]=0; //scoll
+		cmd[2]=40; //scoll
+		cmd[3]=(320>>8); //ecolh
+		cmd[4]=(320&0xff); //ecoll
+		mipiDsiSendLong(0x39, cmd, 4);
+
+		cmd[0]=0x2b; //set_row_addr
+		cmd[1]=0; //scolh
+		cmd[2]=40; //scoll
 		cmd[3]=(320>>8); //ecolh
 		cmd[4]=(320&0xff); //ecoll
 		mipiDsiSendLong(0x39, cmd, 4);
@@ -199,7 +206,7 @@ static void IRAM_ATTR displayTask(void *arg) {
 		uint8_t *myData=(uint8_t*)currFbPtr;
 		img[0]=0x2c;
 		uint8_t *p=&img[1];
-		for (int j=0; j<320; j++) {
+		for (int j=0; j<319; j++) {
 			for (int i=0; i<320; i++) {
 				int v=findPixelVal(myData, i, j);
 				*p++=(v&0xff);
@@ -225,7 +232,8 @@ void dispDraw(uint8_t *mem) {
 	currFbPtr=mem;
 	xSemaphoreGive(dispSem);
 	adns900_get_dxdybtn(&dx, &dy, &btn);
-	mouseMove(dx, dy, btn);
+	//Mouse sensor is mounted upside-down in case. Invert coords.
+	mouseMove(-dx, -dy, btn);
 //	printf("Mouse: %d %d\n", dx, dy);
 }
 

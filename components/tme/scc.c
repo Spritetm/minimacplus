@@ -5,12 +5,17 @@
 #include "hexdump.h"
 #include "network/localtalk.h"
 #include <string.h>
+#include <stdlib.h>
 /*
 Emulation of the Zilog 8530 SCC.
 
 Supports basic mouse pins plus hacked in LocalTalk
 */
 
+//#define SCC_DBG
+
+
+#define exit_when_strict(er) exit(1)
 
 void sccIrq(int ena);
 
@@ -42,6 +47,7 @@ typedef struct {
 	int rr0Prev;
 	int rxAbrtTimer;
 	int rxEom;
+	int intOnNextRxChar;
 } SccChan;
 
 typedef struct {
@@ -75,9 +81,12 @@ static int rxHasByte(int chan) {
 
 static void rxBufIgnoreRest(int chan) {
 	if (scc.chan[chan].rxPos==0) return; //already at new buff
-	printf("RxBuff: Skipping to next buff\n");
 	scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay=-1;
 	scc.chan[chan].rxBufCur++;
+#ifdef SCC_DBG
+	printf("RxBuff: Skipping to next buff %d, which has delay %d.\n",
+			scc.chan[chan].rxBufCur, scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay);
+#endif
 	if (scc.chan[chan].rxBufCur>=NO_RXBUF) scc.chan[chan].rxBufCur=0;
 	scc.chan[chan].rxPos=0;
 }
@@ -85,7 +94,9 @@ static void rxBufIgnoreRest(int chan) {
 static int rxByte(int chan, int *bytesLeftInBuf) {
 	int ret;
 	int curbuf=scc.chan[chan].rxBufCur;
+#ifdef SCC_DBG
 	printf("RxBuf: bufid %d byte %d/%d\n", curbuf, scc.chan[chan].rxPos, scc.chan[chan].rx[curbuf].len);
+#endif
 	if (scc.chan[chan].rx[curbuf].delay!=0) return 0;
 	if (bytesLeftInBuf) *bytesLeftInBuf=scc.chan[chan].rx[curbuf].len-scc.chan[chan].rxPos-1;
 	ret=scc.chan[chan].rx[curbuf].data[scc.chan[chan].rxPos++];
@@ -104,7 +115,9 @@ static int rxBufTick(int chan) {
 	if (scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay > 0) {
 		scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay--;
 		if (scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay==0) {
+#ifdef SCC_DBG
 			printf("Feeding buffer %d into SCC\n", scc.chan[chan].rxBufCur);
+#endif
 			return 1;
 		}
 	}
@@ -210,11 +223,13 @@ static void raiseInt(int chan) {
 	const char *desc[]={"CHB_EXT", "CHB_TX", "CHB_RX", "CHA_EXT", "CHA_TX", "CHA_RX"};
 	if ((scc.chan[chan].wr1&1) ){ //&& (scc.intpending&(~scc.intpendingOld))) {
 		scc.intpendingOld=scc.intpending;
+#ifdef SCC_DBG
 		printf("SCC int, pending %x: ", scc.intpending);
 		for (int i=0; i<6; i++) {
 			if (scc.intpending&(1<<i)) printf("%s ", desc[i]);
 		}
 		printf("\n");
+#endif
 		sccIrq(1);
 	}
 }
@@ -306,12 +321,39 @@ void sccTxFinished(int chan) {
 }
 
 static void checkRxIntPending(int chan) {
+	int doInt=0;
+	int rxIntMode=(scc.chan[chan].wr1>>3)&0x3;
+#ifdef SCC_DBG
+	printf("Int check: chan %d rx has byte %d, int mode %d, intOnNextRxChar: %d\n", 
+			chan, rxHasByte(chan), rxIntMode, scc.chan[chan].intOnNextRxChar);
+#endif
+	if (scc.chan[chan].intOnNextRxChar && rxHasByte(chan)) {
+		doInt=1;
+		scc.chan[chan].intOnNextRxChar=0;
+	}
+	if (rxIntMode>=1) {
+		//special condition int... we handle only eof here
+		if (rxHasByte(chan) && scc.chan[chan].rxEom) doInt=1;
+	} 
+	if (rxIntMode==1) {
+		//int on 1st char
+		if (rxHasByte(chan) && scc.chan[chan].rxPos==0) doInt=1;
+	} else if (rxIntMode==2) {
+		//int on all char
+		if (rxHasByte(chan)) doInt=1;
+	}
+
+	//check global int ena
 	int rxintena=scc.chan[chan].wr1&0x18;
-	if (!rxHasByte(chan) || rxintena==0) { //todo: better rxintena handling
-		scc.intpending&=~((chan==0)?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
-		printf("Resetting int pending for channel %d\n", chan);
-	} else {
+	if (!rxintena) doInt=0;
+
+	if (doInt) {
 		scc.intpending|=((chan==0)?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
+	} else {
+#ifdef SCC_DBG
+		printf("Resetting int pending for channel %d\n", chan);
+#endif
+		scc.intpending&=~((chan==0)?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
 	}
 	raiseInt(chan);
 }
@@ -350,31 +392,50 @@ void sccWrite(unsigned int addr, unsigned int val) {
 		reg=scc.regptr;
 		scc.regptr=0;
 	}
+#ifdef SCC_DBG
 	explainWrite(reg, chan, val);
+#endif
 	if (reg==0) {
 		scc.regptr=val&0x7;
-		if ((val&0x38)==0x8) scc.regptr|=8;
-		if ((val&0x38)==0x10) {
+		if ((val&0x38)==0) {
+			//nop
+		} else if ((val&0x38)==0x8) {
+			//point hi
+			scc.regptr|=8;
+		} else if ((val&0x38)==0x10) {
 			//Reset ext/status int latch
 			scc.chan[chan].rr0Latched=-1;
-		}
-		if ((val&0x38)==0x18) {
+		} else if ((val&0x38)==0x18) {
 			//SCC abort: parse whatever we sent
 //			printf("SCC ABORT: Sent data\n");
 			sccTxFinished(chan);
 			checkRxIntPending(chan);
-		}
-		if ((val&0x38)==0x30) {
+		} else if ((val&0x38)==0x20) {
+			//Int on next char
+			scc.chan[chan].intOnNextRxChar=1;
+			checkRxIntPending(chan);
+		} else if ((val&0x38)==0x30) {
 			//Error Reset: kills special condition bytes from fifo
 			rxBufIgnoreRest(chan);
 			checkRxIntPending(chan);
 			printf("Error Reset Finished, pending=%x\n", scc.intpending);
+		} else if ((val&0x38)==0x38) {
+			//Reset Higher IUS
+		} else {
+			printf("Unknown command to reg 0: %X\n", val);
+			exit_when_strict();
 		}
-		if ((val&0xc0)==0xC0) {
+		if ((val&0xc0)==0) {
+			//Nop
+		} else if ((val&0xc0)==0x80) {
+			//Reset TX CRC gen
+		} else if ((val&0xc0)==0xC0) {
 			//reset tx underrun latch
 //			sccTxFinished(chan);
 			scc.chan[chan].txTimer=10;
 			//if (scc.chan[chan].txTimer==0) scc.chan[chan].txTimer=-1;
+		} else {
+			exit_when_strict();
 		}
 	} else if (reg==1) {
 		scc.chan[chan].wr1=val;
@@ -384,17 +445,50 @@ void sccWrite(unsigned int addr, unsigned int val) {
 		//bitsperchar1, bitsperchar0, autoenables, enterhuntmode, rxcrcen, addresssearch, synccharloadinh, rxena
 		//autoenable: cts = tx ena, dcd = rx ena
 		if (val&0x10) scc.chan[chan].hunting=1;
+	} else if (reg==4) {
+		//Parity, sync etc
+	} else if (reg==5) {
+		//Transmit parameters and controls
 	} else if (reg==6) {
 		scc.chan[chan].sdlcaddr=val;
+	} else if (reg==7) {
+		//Cync char /SDLC flag
 	} else if (reg==8) {
 		scc.chan[chan].txData[scc.chan[chan].txPos++]=val;
 		scc.chan[chan].txTimer+=30;
+#ifdef SCC_DBG
 		printf("TX! Pos %d timer set to %d\n", scc.chan[chan].txPos, scc.chan[chan].txTimer);
+#endif
 	} else if (reg==9) {
 		scc.wr9=val;
+	} else if (reg==10) {
+		//Misc reg
+	} else if (reg==11) {
+		//PLL stuff
+	} else if (reg==12) {
+		//Baud lo
+	} else if (reg==13) {
+		//Baud hi
+	} else if (reg==14) {
+		//Baud generator stuff
+		if ((val&0xe0)==0) {
+			//null command
+		} else if ((val&0xe0)==0x20) {
+			//enter search mode
+		} else if ((val&0xe0)==0xc0) {
+			//set FM mode
+		} else if ((val&0xe0)==0x40) {
+			//reset missing clock
+		} else {
+			printf("Scc write undefined cmd to reg14: %x\n", val);
+			exit_when_strict();
+		}
 	} else if (reg==15) {
 		scc.chan[chan].wr15=val;
 		raiseInt(chan);
+	} else {
+		printf("Scc write to undefined reg: %x\n", reg);
+		exit_when_strict();
 	}
 	checkExtInt(chan);
 //	printf("SCC: write to addr %x chan %d reg %d val %x\n", addr, chan, reg, val);
@@ -430,7 +524,9 @@ unsigned int sccRead(unsigned int addr) {
 		//We assume this also does an intack.
 		int rsn=0;
 
+#ifdef SCC_DBG
 		printf("Pending: 0x%X\n", scc.intpending);
+#endif
 		if (scc.intpending & SCC_RR3_CHB_EXT) {
 			rsn=1;
 			scc.intpending&=~SCC_RR3_CHB_EXT;
@@ -444,8 +540,9 @@ unsigned int sccRead(unsigned int addr) {
 			rsn=2;
 			checkRxIntPending(1);
 		}
-
+#ifdef SCC_DBG
 		printf("Rsn: %d\n", rsn);
+#endif
 		val=scc.wr2;
 		if (scc.wr9&0x10) { //hi/lo
 			val=(scc.wr2&~0x70)|rsn<<4;
@@ -462,9 +559,10 @@ unsigned int sccRead(unsigned int addr) {
 		if (rxHasByte(chan)) {
 			int left=0;
 			val=rxByte(chan, &left);
+#ifdef SCC_DBG
 			printf("SCC READ DATA val %x, %d bytes left\n", val, left);
+#endif
 			if (left==1) { //because status goes with byte *to be read*, the last byte here is the EOM byte
-				printf("Setting EOM\n");
 				scc.chan[chan].rxEom=1;
 				scc.chan[chan].rxAbrtTimer=40;
 			} else {
@@ -482,9 +580,14 @@ unsigned int sccRead(unsigned int addr) {
 		val=0;
 	} else if (reg==15) {
 		val=scc.chan[chan].wr15;
+	} else {
+		printf("Scc read from undefined reg: %x\n", reg);
+		exit_when_strict();
 	}
 	checkExtInt(chan);
+#ifdef SCC_DBG
 	explainRead(reg, chan, val);
+#endif
 	return val;
 }
 
