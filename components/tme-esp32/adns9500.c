@@ -101,7 +101,7 @@ void adns900_get_dxdybtn(int *x, int *y, int *btn) {
 	sy|=adnsRead(0x6)<<8;
 	ets_delay_us(100);
 	*btn=gpio_get_level(ADNS_MISO)?0:1;
-	if (sx!=0 || sy!=0) printf("Mouse: %hd %hd %d\n", sx, sy, *btn);
+//	if (sx!=0 || sy!=0) printf("Mouse: %hd %hd %d\n", sx, sy, *btn);
 	*x=sx;
 	*y=sy;
 }

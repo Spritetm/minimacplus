@@ -459,6 +459,7 @@ void printFps() {
 void tmeStartEmu(void *rom) {
 	int ca1=0, ca2=0;
 	int x, m=0, frame=0;
+	int cyclesPerSec=0;
 	macRom=rom;
 	ramInit();
 	rom_remap=1;
@@ -482,23 +483,23 @@ void tmeStartEmu(void *rom) {
 	localtalkInit();
 	printf("Done! Running.\n");
 	while(1) {
-		for (x=0; x<8000000/60; x+=10) {
-			m68k_execute(10);
-			viaStep(1); //should run at 783.36KHz
-			sccTick();
-			m++;
-			if (m>=1000) {
-				int r=mouseTick();
-				if (r&MOUSE_BTN) viaClear(VIA_PORTB, (1<<3)); else viaSet(VIA_PORTB, (1<<3));
-				if (r&MOUSE_QXB) viaClear(VIA_PORTB, (1<<4)); else viaSet(VIA_PORTB, (1<<4));
-				if (r&MOUSE_QYB) viaClear(VIA_PORTB, (1<<5)); else viaSet(VIA_PORTB, (1<<5));
-				sccSetDcd(SCC_CHANA, r&MOUSE_QXA);
-				sccSetDcd(SCC_CHANB, r&MOUSE_QYA);
-				m=0;
+		for (x=0; x<8000000/60; x+=1000) {
+			for (int i=0; i<100; i++) {
+				m68k_execute(10);
+				viaStep(1); //should run at 783.36KHz
+				sccTick();
 			}
+			int r=mouseTick();
+			if (r&MOUSE_BTN) viaClear(VIA_PORTB, (1<<3)); else viaSet(VIA_PORTB, (1<<3));
+			if (r&MOUSE_QXB) viaClear(VIA_PORTB, (1<<4)); else viaSet(VIA_PORTB, (1<<4));
+			if (r&MOUSE_QYB) viaClear(VIA_PORTB, (1<<5)); else viaSet(VIA_PORTB, (1<<5));
+			sccSetDcd(SCC_CHANA, r&MOUSE_QXA);
+			sccSetDcd(SCC_CHANB, r&MOUSE_QYA);
+			m=0;
 			//Sound handler keeps track of real time, if its buffer is empty we should be done with the video frame.
-			//if (sndDone()) break;
+			if (sndDone()) break;
 		}
+		cyclesPerSec+=x;
 		dispDraw(macFb[video_remap?1:0]);
 		sndPush(macSnd[audio_remap?1:0], audio_en?audio_volume:0);
 		localtalkTick();
@@ -511,6 +512,8 @@ void tmeStartEmu(void *rom) {
 			rtcTick();
 			frame=0;
 			printFps();
+			printf("%d Hz\n", cyclesPerSec);
+			cyclesPerSec=0;
 		}
 	}
 }

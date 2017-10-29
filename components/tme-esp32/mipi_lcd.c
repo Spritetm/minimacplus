@@ -62,10 +62,13 @@ static const DispPacket initPackets[]={
 };
 
 
+#define DO_RESCALE 1
 
-
+#if DO_RESCALE
 #define SCALE_FACT 51 //Floating-point number, actually x/32. Divide mac reso by this to get lcd reso.
-
+#else
+#define SCALE_FACT 32
+#endif
 static uint8_t mask[512];
 
 static void calcLut() {
@@ -115,7 +118,7 @@ static int IRAM_ATTR findMacVal(uint8_t *data, int x, int y) {
 //
 // Due to the weird buildup, a horizontal subpixel actually is 1/3rd real pixel wide!
 
-#if 1
+#if DO_RESCALE
 
 static int IRAM_ATTR findPixelVal(uint8_t *data, int x, int y) {
 	int sx=(x*SCALE_FACT); //32th is 512/320 -> scale 512 mac screen to 320 width
@@ -177,50 +180,88 @@ static void initLcd() {
 	printf("Display inited.\n");
 }
 
+static inline void setColRange(int xstart, int xend) {
+	uint8_t cmd[5];
+	//No idea why the *2... maybe per byte?
+	xstart=xstart*2;
+	xend=xend*2;
+	cmd[0]=0x2a; //set_col_addr
+	cmd[1]=(xstart>>8); //scolh
+	cmd[2]=(xstart&0xff); //scoll
+	cmd[3]=(xend>>8); //ecolh
+	cmd[4]=(xend&0xff); //ecoll
+	mipiDsiSendLong(0x39, cmd, 5);
+}
+
+static inline void setRowRange(int ystart, int yend) {
+	uint8_t cmd[5];
+	cmd[0]=0x2b; //set_page_addr
+	cmd[1]=(ystart>>8); //scolh
+	cmd[2]=(ystart&0xff); //scoll
+	cmd[3]=(yend>>8); //ecolh
+	cmd[4]=(yend&0xff); //ecoll
+	mipiDsiSendLong(0x39, cmd, 5);
+}
+
 static void IRAM_ATTR displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
 	calcLut();
 	uint8_t cmd[5];
+	uint8_t *oldImg=malloc(512*342/8);
 
 	int firstrun=1;
+	setColRange(0, 319);
 	while(1) {
 		int l=0;
 		mipiResync();
 		xSemaphoreTake(dispSem, portMAX_DELAY);
-#if 0
-		cmd[0]=0x2a; //set_col_addr
-		cmd[1]=0; //scolh
-		cmd[2]=40; //scoll
-		cmd[3]=(320>>8); //ecolh
-		cmd[4]=(320&0xff); //ecoll
-		mipiDsiSendLong(0x39, cmd, 4);
-
-		cmd[0]=0x2b; //set_row_addr
-		cmd[1]=0; //scolh
-		cmd[2]=40; //scoll
-		cmd[3]=(320>>8); //ecolh
-		cmd[4]=(320&0xff); //ecoll
-		mipiDsiSendLong(0x39, cmd, 4);
-#endif
 		uint8_t *myData=(uint8_t*)currFbPtr;
-		img[0]=0x2c;
-		uint8_t *p=&img[1];
-		for (int j=0; j<319; j++) {
-			for (int i=0; i<320; i++) {
-				int v=findPixelVal(myData, i, j);
-				*p++=(v&0xff);
-				*p++=(v>>8);
+
+		int xstart, xend, ystart, yend;
+		if (!firstrun) {
+			xstart=0; xend=320;
+			for (ystart=0; ystart<342; ystart++) {
+				if (memcmp(oldImg+64*ystart, myData+64*ystart, 64)!=0) break;
 			}
-			l++;
-			if (l>=LINESPERBUF || j==319) {
-				mipiDsiSendLong(0x39, img, (LINESPERBUF*320*2)+1);
-				img[0]=0x3c;
-				l=0;
-				p=&img[1];
-				if (!firstrun && j>=200) break; //no need to render black bar in subsequent times
-				firstrun=0;
+			for (yend=342-1; yend>=ystart; --yend) {
+				if (memcmp(oldImg+64*yend, myData+64*yend, 64)!=0) break;
 			}
+			if (ystart==342) {
+				//No need for update
+				yend=342;
+			} else {
+				ystart=(ystart*32)/SCALE_FACT-1;
+				yend=(yend*32)/SCALE_FACT+1;
+				if (ystart<0) ystart=0;
+				printf("Changed %d to %d\n", ystart, yend);
+			}
+		} else {
+			xstart=0; xend=320;
+			ystart=0; yend=320;
+		}
+		memcpy(oldImg, myData, 512*342/8);
+
+		if (ystart!=yend) {
+			setRowRange(ystart, 319);
+			img[0]=0x2c;
+			uint8_t *p=&img[1];
+			for (int j=ystart; j<yend; j++) {
+				for (int i=0; i<320; i++) {
+					int v=findPixelVal(myData, i, j);
+					*p++=(v&0xff);
+					*p++=(v>>8);
+				}
+				l++;
+				if (l>=LINESPERBUF || j==yend-1) {
+					mipiDsiSendLong(0x39, img, (l*320*2)+1);
+					img[0]=0x3c;
+					l=0;
+					p=&img[1];
+					if (!firstrun && j>=200) break; //no need to render black bar in subsequent times
+				}
+			}
+			firstrun=0;
 		}
 	}
 }

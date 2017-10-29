@@ -9,28 +9,50 @@
 
 static QueueHandle_t soundQueue;
 
-int sndDone() {
-	return uxQueueSpacesAvailable(soundQueue)<2;
+//powers of 2 plzthx
+#define BUFLEN 2048
+
+static uint8_t buf[BUFLEN];
+static volatile int wp=256, rp=0;
+
+static int bufLen() {
+	return (wp-rp)&(BUFLEN-1);
 }
 
+int sndDone() { //1 when stuff can be written to buffer
+//	printf("sndpoll %d\n", bufLen());
+	return bufLen()<(BUFLEN-400);
+}
 
-#define SND_CHUNKSZ 32
-int sndPush(uint8_t *data, int volume) {
-	uint32_t tmpb[SND_CHUNKSZ];
-	int i=0;
-	int len=370;
-	while (i<len) {
-		int plen=len-i;
-		if (plen>SND_CHUNKSZ) plen=SND_CHUNKSZ;
-		for (int j=0; j<plen; j++) {
-			int s=*data;
+volatile static int myVolume;
+
+#define SND_CHUNKSZ 128
+void sndTask(void *arg) {
+	uint32_t tmpb[SND_CHUNKSZ]={0};
+	printf("Sound task started.\n");
+	while (1) {
+		int volume=(int)myVolume;
+		for (int j=0; j<SND_CHUNKSZ; j++) {
+			int s=buf[rp];
 			s=((s-128)>>(7-volume));
-//			s=s/16;
+			s=s/16;
 			tmpb[j]=((s+128)<<8)+((s+128)<<24);
-			data+=2;
+			rp++;
+			if (rp>=BUFLEN) rp=0;
 		}
-		i2s_write_bytes(0, (char*)tmpb, plen*4, portMAX_DELAY);
-		i+=plen;
+		i2s_write_bytes(0, (char*)tmpb, sizeof(tmpb), portMAX_DELAY);
+//		printf("snd %d\n", rp);
+	}
+}
+
+int sndPush(uint8_t *data, int volume) {
+	while (!sndDone()) usleep(1000);
+	myVolume=volume;
+	for (int i=0; i<370; i++) {
+		buf[wp]=*data;
+		data+=2;
+		wp++;
+		if (wp>=BUFLEN) wp=0;
 	}
 	return 1;
 }
@@ -38,13 +60,13 @@ int sndPush(uint8_t *data, int volume) {
 void sndInit() {
 	i2s_config_t cfg={
 		.mode=I2S_MODE_DAC_BUILT_IN|I2S_MODE_TX|I2S_MODE_MASTER,
-		.sample_rate=22000,
+		.sample_rate=22200,
 		.bits_per_sample=16,
 		.channel_format=I2S_CHANNEL_FMT_RIGHT_LEFT,
 		.communication_format=I2S_COMM_FORMAT_I2S_MSB,
 		.intr_alloc_flags=0,
-		.dma_buf_count=4,
-		.dma_buf_len=1024/4
+		.dma_buf_count=8,
+		.dma_buf_len=1024/8
 	};
 	i2s_driver_install(0, &cfg, 4, &soundQueue);
 	i2s_set_pin(0, NULL);
@@ -63,6 +85,7 @@ void sndInit() {
 	};
 	gpio_config(&io_conf);
 #endif
+	xTaskCreatePinnedToCore(&sndTask, "snd", 3*1024, NULL, 6, NULL, 1);
 }
 
 
