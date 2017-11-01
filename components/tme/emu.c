@@ -484,10 +484,12 @@ void tmeStartEmu(void *rom) {
 	printf("Done! Running.\n");
 	while(1) {
 		for (x=0; x<8000000/60; x+=1000) {
-			for (int i=0; i<100; i++) {
-				m68k_execute(10);
+			for (int i=0; i<10; i++) {
+				m68k_execute(100);
+				for (int l=0; l<10; l++) {
 				viaStep(1); //should run at 783.36KHz
 				sccTick();
+				}
 			}
 			int r=mouseTick();
 			if (r&MOUSE_BTN) viaClear(VIA_PORTB, (1<<3)); else viaSet(VIA_PORTB, (1<<3));
