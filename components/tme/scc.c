@@ -111,10 +111,11 @@ static int rxBytesLeft(int chan) {
 	return scc.chan[chan].rx[scc.chan[chan].rxBufCur].len-scc.chan[chan].rxPos;
 }
 
-static int rxBufTick(int chan) {
+static int rxBufTick(int chan, int noTicks) {
 	if (scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay > 0) {
-		scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay--;
-		if (scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay==0) {
+		scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay-=noTicks;
+		if (scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay<=0) {
+			scc.chan[chan].rx[scc.chan[chan].rxBufCur].delay=0;
 #ifdef SCC_DBG
 			printf("Feeding buffer %d into SCC\n", scc.chan[chan].rxBufCur);
 #endif
@@ -592,30 +593,40 @@ unsigned int sccRead(unsigned int addr) {
 }
 
 //Called at about 800KHz
-void sccTick() {
+void sccTick(int noTicks) {
 	for (int n=0; n<2; n++) {
+		int needCheck=0;
 		if (scc.chan[n].txTimer>0) {
-			scc.chan[n].txTimer--;
-			if (scc.chan[n].txTimer==0) {
+			scc.chan[n].txTimer-=noTicks;
+			if (scc.chan[n].txTimer<=0) {
+				scc.chan[n].txTimer=0;
 //				printf("Tx buffer empty: Sent data\n");
 				sccTxFinished(n);
+				needCheck=1;
 			}
 		}
-		if (rxBufTick(n)) {
+		if (rxBufTick(n, noTicks)) {
 			triggerRx(n);
+			needCheck=1;
 		}
 		if (scc.chan[n].eofDelay>0) {
-			scc.chan[n].eofDelay--;
+			scc.chan[n].eofDelay-=noTicks;
+			if (scc.chan[n].eofDelay<0) scc.chan[n].eofDelay=0;
 			if (scc.chan[n].eofDelay==0 && (scc.chan[n].wr1&0x10)!=0) {
 				//Int mode is recv char or special / special only
 				printf("Raise EOF int for channel %d\n", n);
 				scc.chan[n].eofIntPending=1;
 				scc.intpending|=((n==0)?SCC_RR3_CHA_RX:SCC_RR3_CHB_RX);
 				raiseInt(n);
+				needCheck=1;
 			}
 		}
-		if (scc.chan[n].rxAbrtTimer>0) scc.chan[n].rxAbrtTimer--;
-		checkExtInt(n);
+		if (scc.chan[n].rxAbrtTimer>0) {
+			scc.chan[n].rxAbrtTimer-=noTicks;
+			if (scc.chan[n].rxAbrtTimer<0) scc.chan[n].rxAbrtTimer=0;
+			needCheck=1;
+		}
+		if (needCheck) checkExtInt(n);
 	}
 }
 

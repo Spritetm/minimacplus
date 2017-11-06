@@ -7,14 +7,15 @@ COMPONENT_SRCDIRS := . musashi
 
 MUSASHI_GEN_SRC := musashi/m68kops_pre.c musashi/m68kopac.c musashi/m68kopdm.c musashi/m68kopnz.c
 MUSASHI_GEN_OBJ := $(MUSASHI_GEN_SRC:%.c=%.o)
-COMPONENT_OBJS := musashi/m68kops_pre.o musashi/m68kopac.o musashi/m68kopdm-iram.o musashi/m68kopnz.o musashi/m68kcpu.o emu.o \
+COMPONENT_OBJS := musashi/m68kops_pre.o musashi/m68kopac.o musashi/m68kopdm-iram.o musashi/m68kopnz.o musashi/m68kcpu-iram.o emu.o \
 			iwm.o via.o rtc.o ncr.o scc.o mouse.o
 
-#nothing in iram: 16%
+#nothing in iram: 1240000
 #ac nz in iram: 19%
-#dm nz in iram: 19%
+#dm nz in iram: ng
 #ac dm in iram: 23%
-#dm in iram: 23%
+#dm in iram: 1709000
+#cpu in iram: 1278000
 
 #-O3:
 #nothing: 13%
@@ -33,8 +34,9 @@ COMPONENT_EXTRA_CLEAN := $(addprefix $(COMPONENT_PATH)/musashi/,$(MUSASHI_GEN_SR
 
 #musashi/m68kops_pre.o: CFLAGS += -O3
 #musashi/m68kopac.o: CFLAGS += -O3
-#musashi/m68kopdm.o: CFLAGS += -O3
+musashi/m68kopdm.o: CFLAGS += -O3
 #musashi/m68kopnz.o: CFLAGS += -O3
+musashi/m68kcpu.o: CFLAGS += -O3
 
 emu.o: CFLAGS += -O3
 

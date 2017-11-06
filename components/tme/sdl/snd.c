@@ -15,7 +15,7 @@ static int bufLen() {
 }
 
 int sndDone() {
-	if (!soundEna) return 1;
+	if (!soundEna) return 0;
 	return (bufLen()<512);
 }
 

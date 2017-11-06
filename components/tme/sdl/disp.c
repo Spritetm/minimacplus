@@ -17,11 +17,14 @@ void sdlDie() {
 
 
 void dispInit() {
-	if (SDL_Init( SDL_INIT_VIDEO|SDL_INIT_AUDIO ) < 0 ) sdlDie();
 	win=SDL_CreateWindow( "TME", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
 	if (win==0) sdlDie();
 	surf=SDL_GetWindowSurface(win);
 	drwsurf=SDL_CreateRGBSurfaceWithFormat(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_PIXELFORMAT_RGBA32);
+}
+
+void sdlDispAudioInit() {
+	if (SDL_Init( SDL_INIT_VIDEO|SDL_INIT_AUDIO ) < 0 ) sdlDie();
 }
 
 void handleInput() {

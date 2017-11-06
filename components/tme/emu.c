@@ -441,6 +441,22 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
 }
 #endif
 
+unsigned char *m68k_pcbase=NULL;
+
+void m68k_pc_changed_handler_function(unsigned int address) {
+//	printf("m68k_pc_changed_handler_function %x\n", address);
+	const MemmapEnt *mmEnt=getMmmapEnt(address);
+	if (mmEnt->memAddr) {
+		uint8_t *p;
+		p=(uint8_t*)MMAP_RAM_PTR(mmEnt, address);
+		m68k_pcbase=p-address;
+	} else {
+		printf("PC not in mem!\n");
+		abort();
+	}
+}
+
+
 //Should be called every second. 
 void printFps() {
 	struct timeval tv;
@@ -449,7 +465,7 @@ void printFps() {
 	if (oldtv.tv_sec!=0) {
 		long msec=(tv.tv_sec-oldtv.tv_sec)*1000;
 		msec+=(tv.tv_usec-oldtv.tv_usec)/1000;
-//		printf("Speed: %d%%\n", (int)(100000/msec));
+		printf("Speed: %d%%\n", (int)(100000/msec));
 //		printf("Mem free: %dKiB 8-bit, %dKiB 32-bit\n", xPortGetFreeHeapSizeCaps(MALLOC_CAP_8BIT)/1024, xPortGetFreeHeapSizeCaps(MALLOC_CAP_32BIT)/1024);
 	}
 	oldtv.tv_sec=tv.tv_sec;
@@ -458,7 +474,7 @@ void printFps() {
 
 void tmeStartEmu(void *rom) {
 	int ca1=0, ca2=0;
-	int x, m=0, frame=0;
+	int x, frame=0;
 	int cyclesPerSec=0;
 	macRom=rom;
 	ramInit();
@@ -473,6 +489,7 @@ void tmeStartEmu(void *rom) {
 	viaSet(VIA_PORTB, (1<<3));
 	sccInit();
 	printf("Initializing m68k...\n");
+	m68k_pc_changed_handler_function(0x0);
 	m68k_init();
 	printf("Setting CPU type and resetting...");
 	m68k_set_cpu_type(M68K_CPU_TYPE_68000);
@@ -484,27 +501,24 @@ void tmeStartEmu(void *rom) {
 	printf("Done! Running.\n");
 	while(1) {
 		for (x=0; x<8000000/60; x+=1000) {
-			for (int i=0; i<10; i++) {
-				m68k_execute(100);
-				for (int l=0; l<10; l++) {
-				viaStep(1); //should run at 783.36KHz
-				sccTick();
-				}
-			}
+			m68k_execute(1000);
+			viaStep(100); //should run at 783.36KHz
+			sccTick(100);
+
 			int r=mouseTick();
 			if (r&MOUSE_BTN) viaClear(VIA_PORTB, (1<<3)); else viaSet(VIA_PORTB, (1<<3));
 			if (r&MOUSE_QXB) viaClear(VIA_PORTB, (1<<4)); else viaSet(VIA_PORTB, (1<<4));
 			if (r&MOUSE_QYB) viaClear(VIA_PORTB, (1<<5)); else viaSet(VIA_PORTB, (1<<5));
 			sccSetDcd(SCC_CHANA, r&MOUSE_QXA);
 			sccSetDcd(SCC_CHANB, r&MOUSE_QYA);
-			m=0;
+
 			//Sound handler keeps track of real time, if its buffer is empty we should be done with the video frame.
-			if (sndDone()) break;
+			if (x>(8000000/120) && sndDone()) break;
 		}
 		cyclesPerSec+=x;
 		dispDraw(macFb[video_remap?1:0]);
 		sndPush(macSnd[audio_remap?1:0], audio_en?audio_volume:0);
-		localtalkTick();
+//		localtalkTick();
 		frame++;
 		ca1^=1;
 		viaControlWrite(VIA_CA1, ca1);
@@ -513,8 +527,8 @@ void tmeStartEmu(void *rom) {
 			viaControlWrite(VIA_CA2, ca2);
 			rtcTick();
 			frame=0;
-			printFps();
-			printf("%d Hz\n", cyclesPerSec);
+//			printFps();
+//			printf("%d Hz\n", cyclesPerSec);
 			cyclesPerSec=0;
 		}
 	}
@@ -532,17 +546,19 @@ void sccIrq(int req) {
 
 
 void viaCbPortAWrite(unsigned int val) {
-	int oldRomRemap=rom_remap;
+	static int writes=0;
+	if ((writes++)==0) val=0x67;
+	printf("VIA PORTA WRITE %x\n", val);
 	video_remap=(val&(1<<6))?1:0;
 	rom_remap=(val&(1<<4))?1:0;
-	regenMemmap(rom_remap);
-	audio_remap=(val&(1<<3))?0:1;
-	if (oldRomRemap!=rom_remap) printf("ROM REMAP %d\n", rom_remap);
-	iwmSetHeadSel(val&(1<<5));
+	audio_remap=(val&(1<<3))?1:0;
 	audio_volume=(val&7);
+	iwmSetHeadSel(val&(1<<5));
+	regenMemmap(rom_remap);
 }
 
 void viaCbPortBWrite(unsigned int val) {
+	printf("VIA PORTB WRITE %x\n", val);
 	int b;
 	b=rtcCom(val&4, val&1, val&2);
 	if (b) viaSet(VIA_PORTB, 1); else viaClear(VIA_PORTB, 1);

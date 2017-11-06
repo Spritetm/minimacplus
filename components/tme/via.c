@@ -30,7 +30,7 @@ typedef struct {
 	uint8_t ddra, ddrb;
 	uint8_t ina, inb;
 	uint8_t outa, outb;
-	uint16_t timer1, timer2;
+	int timer1, timer2;
 	uint16_t latch1, latch2;
 	uint8_t ifr, ier;
 	uint8_t pcr, acr;
@@ -54,17 +54,18 @@ void viaClear(int no, int mask) {
 }
 
 void viaStep(int clockcycles) {
-	while(clockcycles--) {
-		if (via.timer1==1) {
+	if ((via.timer1!=0) || (via.acr&(1<<6))) {
+		via.timer1-=clockcycles;
+		if (via.timer1<=1) {
 			via.ifr|=IFR_T1;
-			via.timer1=via.latch1;
+			via.timer1+=via.latch1;
 		}
-		if ((via.timer1!=0) || (via.acr&(1<<6))) via.timer1--;
-		via.timer2--;
-		if (via.timer2==0) {
-			//Actually shouldn't be set when timer2 gets 0 a 2nd time... ahwell.
-			via.ifr|=IFR_T2;
-		}
+	}
+	via.timer2-=clockcycles;
+	if (via.timer2<=0) {
+		//Actually shouldn't be set when timer2 gets 0 a 2nd time... ahwell.
+		via.ifr|=IFR_T2;
+		via.timer2+=0x10000;
 	}
 }
 
@@ -119,10 +120,12 @@ void viaWrite(unsigned int addr, unsigned int val) {
 	if (addr==0x0) {
 		//ORB
 		viaCbPortBWrite(val);
+		via.inb=(via.inb&~via.ddrb)|(val&via.ddrb);
 		accessPort(1);
 	} else if (addr==0x1) {
 		//ORA
 		viaCbPortAWrite(val);
+		via.ina=(via.ina&~via.ddra)|(val&via.ddra);
 		accessPort(0);
 	} else if (addr==0x2) {
 		//DDRB
@@ -180,6 +183,7 @@ void viaWrite(unsigned int addr, unsigned int val) {
 	} else if (addr==0xf) {
 		//ORA
 		viaCbPortAWrite(val);
+		via.ina=(via.ina&~via.ddra)|(val&via.ddra);
 	}
 //	printf("VIA write %s val %x\n", viaRegNames[addr], val);
 }

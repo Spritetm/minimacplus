@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "tmeconfig.h"
 #include "snd.h"
+#include "disp.h"
 
 static void *loadRom(char *file) {
 	int i;
@@ -38,5 +39,6 @@ int main(int argc, char **argv) {
 		rtcInit(data);
 		fclose(f);
 	}
+	sdlDispAudioInit();
 	tmeStartEmu(rom);
 }

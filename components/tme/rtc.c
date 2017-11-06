@@ -39,7 +39,7 @@ int rtcCom(int en, int dat, int clk) {
 			} else if (rtc.pos==15) {
 				if ((rtc.cmd&0x8000)==0) {
 					rtc.mem[(rtc.cmd&0x7C00)>>10]=rtc.cmd&0xff;
-//					saveRtcMem(rtc.mem);
+					saveRtcMem(rtc.mem);
 				}
 				printf("RTC/PRAM CMD %x\n", rtc.cmd);
 			}

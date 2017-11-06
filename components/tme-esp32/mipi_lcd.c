@@ -231,8 +231,11 @@ static void IRAM_ATTR displayTask(void *arg) {
 				//No need for update
 				yend=342;
 			} else {
+				//Only copy changed bits of data to changebuffer
+				memcpy(oldImg+(ystart*64), myData+(ystart*64), (yend-ystart)*64);
+
 				ystart=(ystart*32)/SCALE_FACT-1;
-				yend=(yend*32)/SCALE_FACT+1;
+				yend=(yend*32)/SCALE_FACT+2;
 				if (ystart<0) ystart=0;
 				printf("Changed %d to %d\n", ystart, yend);
 			}
@@ -248,7 +251,7 @@ static void IRAM_ATTR displayTask(void *arg) {
 			uint8_t *p=&img[1];
 			for (int j=ystart; j<yend; j++) {
 				for (int i=0; i<320; i++) {
-					int v=findPixelVal(myData, i, j);
+					int v=findPixelVal(oldImg, i, j);
 					*p++=(v&0xff);
 					*p++=(v>>8);
 				}

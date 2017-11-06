@@ -73,7 +73,8 @@
  * and m68k_read_pcrelative_xx() for PC-relative addressing.
  * If off, all read requests from the CPU will be redirected to m68k_read_xx()
  */
-#define M68K_SEPARATE_READS         OPT_OFF
+#define M68K_SEPARATE_READS         OPT_ON
+
 
 /* If ON, the CPU will call m68k_write_32_pd() when it executes move.l with a
  * predecrement destination EA mode instead of m68k_write_32().
@@ -124,9 +125,9 @@
  * large value.  This allows host programs to be nicer when it comes to
  * fetching immediate data and instructions on a banked memory system.
  */
-#define M68K_MONITOR_PC             OPT_OFF
-#define M68K_SET_PC_CALLBACK(A)     your_pc_changed_handler_function(A)
-
+#define M68K_MONITOR_PC             OPT_SPECIFY_HANDLER
+#define M68K_SET_PC_CALLBACK(A)     m68k_pc_changed_handler_function(A)
+void m68k_pc_changed_handler_function(unsigned int addr);
 
 /* If ON, CPU will call the instruction hook callback before every
  * instruction.
@@ -184,5 +185,42 @@ void m68k_instruction();
 /* ======================================================================== */
 /* ============================== END OF FILE ============================= */
 /* ======================================================================== */
+
+
+#include <byteswap.h>
+#include <stdint.h>
+
+extern unsigned char *m68k_pcbase;
+
+static inline unsigned int m68k_read_immediate_16(unsigned int address) {
+	address&=0xFFFFFF;
+	uint16_t *p=(uint16_t*)(m68k_pcbase+address);
+	return __bswap_16(*p);
+}
+
+static inline unsigned int m68k_read_immediate_32(unsigned int address) {
+	address&=0xFFFFFF;
+	uint32_t *p=(uint32_t*)(m68k_pcbase+address);
+	return __bswap_32(*p);
+}
+
+static inline unsigned int  m68k_read_pcrelative_8(unsigned int address) {
+	address&=0xFFFFFF;
+	uint8_t *p=(uint8_t*)(m68k_pcbase+address);
+	return *p;
+}
+
+static inline unsigned int  m68k_read_pcrelative_16(unsigned int address) {
+	address&=0xFFFFFF;
+	uint16_t *p=(uint16_t*)(m68k_pcbase+address);
+	return __bswap_16(*p);
+}
+
+static inline unsigned int  m68k_read_pcrelative_32(unsigned int address) {
+	address&=0xFFFFFF;
+	uint32_t *p=(uint32_t*)(m68k_pcbase+address);
+	return __bswap_32(*p);
+}
+
 
 #endif /* M68KCONF__HEADER */

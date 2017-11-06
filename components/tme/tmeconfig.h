@@ -29,7 +29,6 @@
 #define TME_SCREENBUF 0x3FA700
 #define TME_SCREENBUF_ALT 0x3F2700
 #define TME_SNDBUF 0x3FFD00
-#define TME_SNDBUF_ALT 0x3FA100
 
 
 #else
@@ -40,9 +39,9 @@
 #define TME_SCREENBUF 0x1A700
 #define TME_SCREENBUF_ALT 0x12700
 #define TME_SNDBUF 0x1FD00
-#define TME_SNDBUF_ALT 0x1A100
 
 #endif
-
-
 #endif
+
+//Source: Guide to the Macintosh family hardware
+#define TME_SNDBUF_ALT (TME_SNDBUF-0x5C00)

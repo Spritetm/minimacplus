@@ -48,11 +48,19 @@ void sndTask(void *arg) {
 int sndPush(uint8_t *data, int volume) {
 	while (!sndDone()) usleep(1000);
 	myVolume=volume;
-	for (int i=0; i<370; i++) {
-		buf[wp]=*data;
-		data+=2;
-		wp++;
-		if (wp>=BUFLEN) wp=0;
+	if (volume) {
+		for (int i=0; i<370; i++) {
+			buf[wp]=*data;
+			data+=2;
+			wp++;
+			if (wp>=BUFLEN) wp=0;
+		}
+	} else {
+		//muted
+		for (int i=0; i<370; i++) {
+			buf[wp++]=128;
+			if (wp>=BUFLEN) wp=0;
+		}
 	}
 	return 1;
 }

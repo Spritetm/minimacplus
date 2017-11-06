@@ -6,6 +6,6 @@ void sccWrite(unsigned int addr, unsigned int val);
 unsigned int sccRead(unsigned int addr);
 void sccSetDcd(int chan, int val);
 void sccInit();
-void sccTick();
+void sccTick(int cycles);
 void sccRecv(int chan, uint8_t *data, int len, int delay);
 
