@@ -23,6 +23,7 @@ static void *loadRom(char *file) {
 }
 
 void saveRtcMem(char *data) {
+	printf("Saving RTC mem...\n");
 	FILE *f=fopen("pram.dat", "wb");
 	if (f!=NULL) {
 		fwrite(data, 32, 1, f);
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
 		fread(data, 32, 1, f);
 		rtcInit(data);
 		fclose(f);
+		printf("Loaded RTC data from pram.dat\n");
 	}
 	sdlDispAudioInit();
 	tmeStartEmu(rom);

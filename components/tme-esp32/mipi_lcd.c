@@ -203,6 +203,9 @@ static inline void setRowRange(int ystart, int yend) {
 	mipiDsiSendLong(0x39, cmd, 5);
 }
 
+//Use this to move the display area down.
+#define YOFFSET 8
+
 static void IRAM_ATTR displayTask(void *arg) {
 	uint8_t *img=malloc((LINESPERBUF*320*2)+1);
 	assert(img);
@@ -246,7 +249,7 @@ static void IRAM_ATTR displayTask(void *arg) {
 		memcpy(oldImg, myData, 512*342/8);
 
 		if (ystart!=yend) {
-			setRowRange(ystart, 319);
+			setRowRange(ystart+YOFFSET, 319);
 			img[0]=0x2c;
 			uint8_t *p=&img[1];
 			for (int j=ystart; j<yend; j++) {

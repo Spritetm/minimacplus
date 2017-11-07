@@ -527,8 +527,8 @@ void tmeStartEmu(void *rom) {
 			viaControlWrite(VIA_CA2, ca2);
 			rtcTick();
 			frame=0;
-//			printFps();
-//			printf("%d Hz\n", cyclesPerSec);
+			printFps();
+			printf("%d Hz\n", cyclesPerSec);
 			cyclesPerSec=0;
 		}
 	}
@@ -548,7 +548,7 @@ void sccIrq(int req) {
 void viaCbPortAWrite(unsigned int val) {
 	static int writes=0;
 	if ((writes++)==0) val=0x67;
-	printf("VIA PORTA WRITE %x\n", val);
+//	printf("VIA PORTA WRITE %x\n", val);
 	video_remap=(val&(1<<6))?1:0;
 	rom_remap=(val&(1<<4))?1:0;
 	audio_remap=(val&(1<<3))?1:0;
@@ -558,7 +558,7 @@ void viaCbPortAWrite(unsigned int val) {
 }
 
 void viaCbPortBWrite(unsigned int val) {
-	printf("VIA PORTB WRITE %x\n", val);
+//	printf("VIA PORTB WRITE %x\n", val);
 	int b;
 	b=rtcCom(val&4, val&1, val&2);
 	if (b) viaSet(VIA_PORTB, 1); else viaClear(VIA_PORTB, 1);

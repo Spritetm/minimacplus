@@ -16,16 +16,27 @@
 #include <stdlib.h>
 #include "esp_err.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "esp_partition.h"
 
 #include "emu.h"
 #include "tmeconfig.h"
+#include "rtc.h"
 
 unsigned char *romdata;
+nvs_handle nvs;
 
 void emuTask(void *pvParameters)
 {
 	tmeStartEmu(romdata);
+}
+
+void saveRtcMem(char *data) {
+	esp_err_t err;
+	err=nvs_set_blob(nvs, "pram", data, 32);
+	if (err!=ESP_OK) {
+		printf("NVS: Saving to PRAM failed!");
+	}
 }
 
 
@@ -35,6 +46,23 @@ void app_main()
 	const esp_partition_t* part;
 	spi_flash_mmap_handle_t hrom;
 	esp_err_t err;
+	uint8_t pram[32];
+
+	nvs_flash_init();
+	err=nvs_open("pram", NVS_READWRITE, &nvs);
+	if (err!=ESP_OK) {
+		printf("NVS: Try erase\n");
+		nvs_flash_erase();
+		err=nvs_open("pram", NVS_READWRITE, &nvs);
+	}
+
+	unsigned int sz=32;
+	err = nvs_get_blob(nvs, "pram", pram, &sz);
+	if (err == ESP_OK) {
+		rtcInit((char*)pram);
+	} else {
+		printf("NVS: Cannot load pram!\n");
+	}
 
 	part=esp_partition_find_first(0x40, 0x1, NULL);
 	if (part==0) printf("Couldn't find bootrom part!\n");

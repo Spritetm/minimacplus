@@ -117,6 +117,7 @@ void viaControlWrite(int no, int val) {
 }
 
 void viaWrite(unsigned int addr, unsigned int val) {
+	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
 	if (addr==0x0) {
 		//ORB
 		viaCbPortBWrite(val);
@@ -185,7 +186,7 @@ void viaWrite(unsigned int addr, unsigned int val) {
 		viaCbPortAWrite(val);
 		via.ina=(via.ina&~via.ddra)|(val&via.ddra);
 	}
-//	printf("VIA write %s val %x\n", viaRegNames[addr], val);
+	printf("PC %x VIA write %s val %x\n", pc, viaRegNames[addr], val);
 }
 
 
@@ -247,6 +248,6 @@ unsigned int viaRead(unsigned int addr) {
 		//ORA
 		val=via.ina;
 	}
-//	printf("PC %x VIA read %s val %x\n", pc, viaRegNames[addr], val);
+	printf("PC %x VIA read %s val %x\n", pc, viaRegNames[addr], val);
 	return val;
 }

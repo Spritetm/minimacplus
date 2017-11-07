@@ -29,8 +29,8 @@ Thing to emulate single-lane MIPI using a flipflop and a bunch of resistors.
 
 
 
-#define HOST VSPI_HOST
-#define IRQSRC ETS_SPI3_DMA_INTR_SOURCE
+#define HOST HSPI_HOST
+#define IRQSRC ETS_SPI2_DMA_INTR_SOURCE
 #define DMACH 2
 #define DESCCNT 8
 

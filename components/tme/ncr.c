@@ -168,7 +168,7 @@ unsigned int ncrRead(unsigned int addr, unsigned int dack) {
 		ret=ncr.din;
 //		printf("READ BYTE (NCR addr6) %02X dack=%d\n", ret, dack);
 	} else if (addr==7) {
-		printf("!UNIMPLEMENTED!\n");
+		printf("Scsi: !UNIMPLEMENTED! (addr 7)\n");
 	}
 //	printf("%08X SCSI: (dack %d), cur st %s read %s (reg %d) = %x \n", 
 //		pc, dack,  stateNames[ncr.state], regNamesR[addr], addr, ret);
