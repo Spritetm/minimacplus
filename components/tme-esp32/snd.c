@@ -12,8 +12,12 @@ static QueueHandle_t soundQueue;
 //powers of 2 plzthx
 #define BUFLEN 2048
 
+#define IO_AMP_DIS 2
+
 static uint8_t buf[BUFLEN];
 static volatile int wp=256, rp=0;
+
+static int ampPowerTimeout=0;
 
 static int bufLen() {
 	return (wp-rp)&(BUFLEN-1);
@@ -55,12 +59,16 @@ int sndPush(uint8_t *data, int volume) {
 			wp++;
 			if (wp>=BUFLEN) wp=0;
 		}
+		gpio_set_level(IO_AMP_DIS, 0);
+		ampPowerTimeout=10;
 	} else {
 		//muted
 		for (int i=0; i<370; i++) {
 			buf[wp++]=128;
 			if (wp>=BUFLEN) wp=0;
 		}
+		ampPowerTimeout--;
+		if (ampPowerTimeout==0) gpio_set_level(IO_AMP_DIS, 1);
 	}
 	return 1;
 }
@@ -80,6 +88,15 @@ void sndInit() {
 	i2s_set_pin(0, NULL);
 	i2s_set_dac_mode(I2S_DAC_CHANNEL_LEFT_EN);
 	i2s_set_sample_rates(0, cfg.sample_rate);
+
+	gpio_config_t io_conf_amp={
+		.intr_type=GPIO_INTR_DISABLE,
+		.mode=GPIO_MODE_OUTPUT,
+		.pull_up_en=1,
+		.pin_bit_mask=(1<<IO_AMP_DIS) //Amp enable line
+	};
+	gpio_config(&io_conf_amp);
+
 
 #if 1
 	//I2S enables *both* DAC channels; we only need DAC2. DAC1 is connected to the select button.
