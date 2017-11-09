@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct {
 	int lastClkVal;
@@ -15,8 +16,9 @@ void rtcTick() {
 	int x;
 	for (x=0; x<3; x++) {
 		rtc.mem[x]++;
-		if (rtc.mem[x]!=0) return;
+		if (rtc.mem[x]!=0) break;
 	}
+	for (int i=0; i<4; i++) rtc.mem[i+4]=rtc.mem[i]; //undocumented; mac needs it tho'.
 }
 
 extern void saveRtcMem(char *mem);
@@ -36,12 +38,12 @@ int rtcCom(int en, int dat, int clk) {
 //			printf("RTC: clocktick %d, dataline %d, cmd %x\n", rtc.pos, dat, rtc.cmd);
 			if (rtc.cmd&0x8000) { //read
 				if (rtc.pos==8) {
-					printf("RTC: Read cmd %x\n", rtc.cmd>>8);
 					rtc.cmd|=rtc.mem[(rtc.cmd&0x7C00)>>10];
+//					printf("RTC: Read cmd %x val %x\n", rtc.cmd>>8, (rtc.cmd&0xff));
 				}
 				ret=((rtc.cmd&(1<<(15-rtc.pos)))?1:0);
 			} else if (rtc.pos==15) {
-				printf("RTC: Write cmd %x\n", rtc.cmd>>8);
+//				printf("RTC: Write cmd %x\n", rtc.cmd>>8);
 				rtc.mem[(rtc.cmd&0x7C00)>>10]=rtc.cmd&0xff;
 				saveRtcMem((char*)rtc.mem);
 			}

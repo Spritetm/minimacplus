@@ -74,6 +74,7 @@
  * If off, all read requests from the CPU will be redirected to m68k_read_xx()
  */
 #define M68K_SEPARATE_READS         OPT_ON
+//#define M68K_SEPARATE_READS         OPT_OFF
 
 
 /* If ON, the CPU will call m68k_write_32_pd() when it executes move.l with a

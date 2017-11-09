@@ -385,6 +385,7 @@ static void triggerRx(int chan) {
 void sccWrite(unsigned int addr, unsigned int val) {
 	int chan, reg;
 	if (addr & (1<<1)) chan=SCC_CHANA; else chan=SCC_CHANB;
+	if (scc.regptr>32) abort();
 	if (addr & (1<<2)) {
 		//Data
 		reg=8;
@@ -499,6 +500,9 @@ void sccWrite(unsigned int addr, unsigned int val) {
 unsigned int sccRead(unsigned int addr) {
 	int chan, reg, val=0xff;
 	if (addr & (1<<1)) chan=SCC_CHANA; else chan=SCC_CHANB;
+	if (scc.regptr>32) {
+		printf("WtF, regptr=%x?\n", scc.regptr);
+	}
 	if (addr & (1<<2)) {
 		//Data
 		reg=8;

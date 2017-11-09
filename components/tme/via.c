@@ -35,6 +35,7 @@ typedef struct {
 	uint8_t ifr, ier;
 	uint8_t pcr, acr;
 	uint8_t controlin[2];
+	int srTicks;
 } Via;
 
 static Via via;
@@ -53,21 +54,6 @@ void viaClear(int no, int mask) {
 	if (no==VIA_PORTA) via.ina&=~mask; else via.inb&=~mask;
 }
 
-void viaStep(int clockcycles) {
-	if ((via.timer1!=0) || (via.acr&(1<<6))) {
-		via.timer1-=clockcycles;
-		if (via.timer1<=1) {
-			via.ifr|=IFR_T1;
-			via.timer1+=via.latch1;
-		}
-	}
-	via.timer2-=clockcycles;
-	if (via.timer2<=0) {
-		//Actually shouldn't be set when timer2 gets 0 a 2nd time... ahwell.
-		via.ifr|=IFR_T2;
-		via.timer2+=0x10000;
-	}
-}
 
 static void viaCheckIrq() {
 	static int oldmint=0;
@@ -82,6 +68,38 @@ static void viaCheckIrq() {
 	}
 }
 
+void viaStep(int clockcycles) {
+	if ((via.timer1!=0) || (via.acr&(1<<6))) {
+		via.timer1-=clockcycles;
+		if (via.timer1<=1) {
+			via.ifr|=IFR_T1;
+			via.timer1+=via.latch1;
+		}
+	}
+	via.timer2-=clockcycles;
+	if (via.timer2<=0) {
+		//Actually shouldn't be set when timer2 gets 0 a 2nd time... ahwell.
+		via.ifr|=IFR_T2;
+		via.timer2+=0x10000;
+	}
+	if (via.srTicks) {
+		via.srTicks-=clockcycles;
+		if (via.srTicks<=0) {
+			via.ifr|=IFR_SR;
+			via.srTicks=0;
+		}
+	}
+
+	static int p=0;
+	p++;
+	if (p==200) {
+		p=0;
+		via.ifr|=0x4;
+	}
+
+	viaCheckIrq();
+}
+
 static int pcrFor(int no) {
 	const int shift[]={0, 1, 4, 5};
 	const int mask[]={1, 3, 1, 3};
@@ -93,12 +111,13 @@ static int pcrFor(int no) {
 	}
 }
 
+//Clears CB1/CA1 bits in IFR
 static void accessPort(int no) {
 	via.ifr&=~(no?IFR_CB1:IFR_CA1);
 	int pcrca2=pcrFor(no?VIA_CB2:VIA_CA2);
-	if (pcrca2==PCR_NEG || pcrca2==PCR_POS) {
+//	if (pcrca2==PCR_NEG || pcrca2==PCR_POS) {
 		via.ifr&=~(no?IFR_CB2:IFR_CA2);
-	}
+//	}
 	viaCheckIrq();
 }
 
@@ -161,6 +180,7 @@ void viaWrite(unsigned int addr, unsigned int val) {
 		viaCheckIrq();
 	} else if (addr==0xa) {
 		//SR
+		via.srTicks=8;
 //		printf("6522: Unimplemented: Write %x to SR?\n", val);
 	} else if (addr==0xb) {
 		//ACR
@@ -180,13 +200,17 @@ void viaWrite(unsigned int addr, unsigned int val) {
 			via.ier&=~val;
 		}
 		via.ier&=0x7f;
+		if (via.ier&0x18) {
+			printf("Unsupported int enabled. ier=%x\n", via.ier);
+			abort();
+		}
 		viaCheckIrq();
 	} else if (addr==0xf) {
 		//ORA
 		viaCbPortAWrite(val);
 		via.ina=(via.ina&~via.ddra)|(val&via.ddra);
 	}
-	printf("PC %x VIA write %s val %x\n", pc, viaRegNames[addr], val);
+//	printf("PC %x VIA write %s val %x\n", pc, viaRegNames[addr], val);
 }
 
 
@@ -231,6 +255,8 @@ unsigned int viaRead(unsigned int addr) {
 		val=via.timer2>>8;
 	} else if (addr==0xa) {
 		//SR
+		via.ifr&=~IFR_SR;
+		val=0xff;
 //		printf("6522: Unimplemented: Read from SR?\n");
 	} else if (addr==0xb) {
 		//ACR
@@ -248,6 +274,6 @@ unsigned int viaRead(unsigned int addr) {
 		//ORA
 		val=via.ina;
 	}
-	printf("PC %x VIA read %s val %x\n", pc, viaRegNames[addr], val);
+//	printf("PC %x VIA read %s val %x\n", pc, viaRegNames[addr], val);
 	return val;
 }

@@ -522,6 +522,10 @@ void tmeStartEmu(void *rom) {
 		frame++;
 		ca1^=1;
 		viaControlWrite(VIA_CA1, ca1);
+		if (frame==59) {
+			ca2^=1;
+			viaControlWrite(VIA_CA2, ca2);
+		}
 		if (frame>=60) {
 			ca2^=1;
 			viaControlWrite(VIA_CA2, ca2);
