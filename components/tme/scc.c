@@ -6,6 +6,7 @@
 #include "network/localtalk.h"
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 /*
 Emulation of the Zilog 8530 SCC.
 
@@ -51,7 +52,8 @@ typedef struct {
 } SccChan;
 
 typedef struct {
-	int regptr;
+	int guard;
+	unsigned int regptr;
 	int intpending;
 	int intpendingOld;
 	SccChan chan[2];
@@ -385,7 +387,7 @@ static void triggerRx(int chan) {
 void sccWrite(unsigned int addr, unsigned int val) {
 	int chan, reg;
 	if (addr & (1<<1)) chan=SCC_CHANA; else chan=SCC_CHANB;
-	if (scc.regptr>32) abort();
+	assert(scc.regptr<32);
 	if (addr & (1<<2)) {
 		//Data
 		reg=8;
@@ -500,9 +502,7 @@ void sccWrite(unsigned int addr, unsigned int val) {
 unsigned int sccRead(unsigned int addr) {
 	int chan, reg, val=0xff;
 	if (addr & (1<<1)) chan=SCC_CHANA; else chan=SCC_CHANB;
-	if (scc.regptr>32) {
-		printf("WtF, regptr=%x?\n", scc.regptr);
-	}
+	assert(scc.regptr<32);
 	if (addr & (1<<2)) {
 		//Data
 		reg=8;
@@ -645,5 +645,6 @@ void sccInit() {
 		scc.chan[0].rx[x].delay=-1;
 		scc.chan[1].rx[x].delay=-1;
 	}
+	scc.guard=0x1234;
 }
 
