@@ -1,0 +1,17 @@
+menu "Tiny Mac Emulator options"
+
+choice TME_DISP
+	prompt "Display"
+	default TME_DISP_MIPI
+	help
+		Select the display to output
+
+config TME_DISP_MIPI
+	bool "Subpixel scaled 320x320 MIPI display"
+
+config TME_DISP_WROVER
+	bool "Cropped 320x240 display on Wrover-Kit"
+
+endchoice
+
+endmenu
